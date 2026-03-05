@@ -413,12 +413,9 @@ const App: React.FC = () => {
 
               const exactMapping = fbdiMappings.find(m => {
                 const mSheet = (m.DATA_IDENTIFIER || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-                // Normalize metadata business name and source header
-                const mBusinessNormalized = (m.METADATA_COLUMN_HEADER || '').replace(/[^A-Z0-9]/g, '').toUpperCase();
-                const hNormalized = h.replace(/[^A-Z0-9]/g, '').toUpperCase();
-
-                // USER REQUIREMENT: Business column contains source header (normalized)
-                return mSheet === cleanSheetName && mBusinessNormalized.includes(hNormalized) && m.COLUMN_NAME;
+                const mHeaderClean = (m.METADATA_COLUMN_HEADER || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                const hClean = h.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                return mSheet === cleanSheetName && mHeaderClean === hClean && m.COLUMN_NAME;
               });
 
               if (exactMapping && exactMapping.TABLE_NAME && exactMapping.COLUMN_NAME) {
@@ -433,7 +430,6 @@ const App: React.FC = () => {
                 if (columnExists) {
                   bestMatch = `${matchedObj!.name}.${matchedCol}`;
                   bestScore = 100;
-                  console.log(`[Metadata Match] Linked Header '${h}' to ${bestMatch} via Business Column '${exactMapping.METADATA_COLUMN_HEADER}'`);
                 }
               }
             }
