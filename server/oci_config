@@ -1,0 +1,6 @@
+[DEFAULT]
+user=ocid1.user.oc1..aaaaaaaamstzpjooxi5nfihwyqm2xnkmsjrtjk45gsbbqj3lru7ivfnxhbpa
+fingerprint=f8:6a:2f:3f:fb:d9:78:24:80:fa:6a:ba:24:07:cb:f9
+tenancy=ocid1.tenancy.oc1..aaaaaaaaseekzwkh3c5olsh6cdgvs46jovyxrzfwxas66nxxw5sfjg72zi7a
+region=uk-london-1
+key_file=c:/Users/madhav.innani/Downloads/intelliextract-pro/server/oci_api_key.pem
