@@ -85,7 +85,7 @@ export interface ObjectGroup {
 export interface FileSpecification {
   id: string;
   name: string;
-  version: number;
+  version: string | number;
   objectGroupId: string;
   columns: ColumnDefinition[];
   filters: FilterCondition[];

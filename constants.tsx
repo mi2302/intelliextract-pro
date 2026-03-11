@@ -9,7 +9,7 @@ export const MOCK_METADATA: ObjectGroup[] = [
     databaseType: 'ORACLE',
     objects: [
       {
-        id: 'obj_sup_head',
+        id: 'SUPPLIER_HEADERS',
         name: 'Supplier Header',
         tableName: 'SUPPLIER_HEADERS',
         fields: [
@@ -20,7 +20,7 @@ export const MOCK_METADATA: ObjectGroup[] = [
         ]
       },
       {
-        id: 'obj_sup_addr',
+        id: 'SUPPLIER_ADDRESSES',
         name: 'Supplier Address',
         tableName: 'SUPPLIER_ADDRESSES',
         fields: [
@@ -31,7 +31,7 @@ export const MOCK_METADATA: ObjectGroup[] = [
         ]
       },
       {
-        id: 'obj_sup_tax',
+        id: 'SUPPLIER_TAX',
         name: 'Supplier Tax Info',
         tableName: 'SUPPLIER_TAX',
         fields: [
@@ -42,8 +42,8 @@ export const MOCK_METADATA: ObjectGroup[] = [
       }
     ],
     relationships: [
-      { sourceObjectId: 'obj_sup_head', targetObjectId: 'obj_sup_addr', joinType: 'LEFT', condition: 'SUPPLIER_HEADERS.SUPPLIER_ID = SUPPLIER_ADDRESSES.SUPPLIER_ID' },
-      { sourceObjectId: 'obj_sup_head', targetObjectId: 'obj_sup_tax', joinType: 'LEFT', condition: 'SUPPLIER_HEADERS.SUPPLIER_ID = SUPPLIER_TAX.SUPPLIER_ID' }
+      { sourceObjectId: 'SUPPLIER_HEADERS', targetObjectId: 'SUPPLIER_ADDRESSES', joinType: 'LEFT', condition: 'SUPPLIER_HEADERS.SUPPLIER_ID = SUPPLIER_ADDRESSES.SUPPLIER_ID' },
+      { sourceObjectId: 'SUPPLIER_HEADERS', targetObjectId: 'SUPPLIER_TAX', joinType: 'LEFT', condition: 'SUPPLIER_HEADERS.SUPPLIER_ID = SUPPLIER_TAX.SUPPLIER_ID' }
     ]
   },
   {
@@ -52,7 +52,7 @@ export const MOCK_METADATA: ObjectGroup[] = [
     databaseType: 'POSTGRES',
     objects: [
       {
-        id: 'obj_po_head',
+        id: 'PO_HEADERS',
         name: 'PO Header',
         tableName: 'PO_HEADERS',
         fields: [
@@ -64,7 +64,7 @@ export const MOCK_METADATA: ObjectGroup[] = [
         ]
       },
       {
-        id: 'obj_po_line',
+        id: 'PO_LINES',
         name: 'PO Line',
         tableName: 'PO_LINES',
         fields: [
@@ -77,7 +77,7 @@ export const MOCK_METADATA: ObjectGroup[] = [
       }
     ],
     relationships: [
-      { sourceObjectId: 'obj_po_head', targetObjectId: 'obj_po_line', joinType: 'INNER', condition: 'PO_HEADERS.PO_HEADER_ID = PO_LINES.PO_HEADER_ID' }
+      { sourceObjectId: 'PO_HEADERS', targetObjectId: 'PO_LINES', joinType: 'INNER', condition: 'PO_HEADERS.PO_HEADER_ID = PO_LINES.PO_HEADER_ID' }
     ]
   }
 ];

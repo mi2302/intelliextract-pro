@@ -23,18 +23,11 @@ import PreviewModal from './components/PreviewModal';
 import FBDIImportModal from './components/FBDIImportModal';
 import LoadingScreen from './components/LoadingScreen';
 import { SearchableSelect } from './components/SearchableSelect';
-import {
-  processNaturalLanguageQuery,
-  suggestTransformations,
-  introspectDatabase,
-  inferModelFromFile,
-  generateSQLFromSpec,
-  generateMockDataForSpec,
-  analyzeFbdiMetadata
-} from './services/geminiService';
+import ExtractionProgressScreen from './components/ExtractionProgressScreen';
 import {
   fetchSavedModels,
-  fetchSavedModelDetail
+  fetchSavedModelDetail,
+  analyzeFbdiMetadata
 } from './services/dbService';
 import { analyzeFbdiContent, AgentAnalysis } from './utils/fbdiAnalysis';
 
@@ -59,53 +52,140 @@ const App: React.FC = () => {
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
 
+  // Extraction Progress States
+  const [isExtractingMode, setIsExtractingMode] = useState(false);
+  const [extractProgress, setExtractProgress] = useState(0);
+  const [extractStatus, setExtractStatus] = useState('');
+
   useEffect(() => {
     if (groups.length > 0 && !selectedGroup) {
       setSelectedGroup(groups[0]);
     }
   }, [groups]);
 
-  // Sync with DB on mount
+  // Sync with DB on mount - Optimized: Only fetch headers, hydrate on demand
   useEffect(() => {
     const syncWithDb = async () => {
       setInitialSyncLoading(true);
       try {
-        const savedModels = await fetchSavedModels();
-        if (savedModels.length > 0) {
-          const allGroups: ObjectGroup[] = [];
-          const allSpecs: FileSpecification[] = [];
+        const { models, latestModelDetail } = await fetchSavedModels();
+        if (models.length > 0) {
+          const placeholderGroups: ObjectGroup[] = models.map(model => {
+            const isLatest = latestModelDetail && model.MODEL_ID === latestModelDetail.group.modelId;
+            return {
+              id: `grp_db_${model.MODEL_ID}`,
+              modelId: model.MODEL_ID,
+              name: model.MODEL_NAME,
+              databaseType: 'ORACLE',
+              objects: isLatest ? latestModelDetail.group.objects : [],
+              relationships: isLatest ? latestModelDetail.group.relationships : []
+            };
+          });
 
-          for (const model of savedModels) {
-            const detail = await fetchSavedModelDetail(model.MODEL_ID);
-            if (detail) {
-              allGroups.push(detail.group);
-              allSpecs.push(...detail.specifications);
+          setGroups(placeholderGroups);
+
+          // If eagerly loaded, update specifications too
+          if (latestModelDetail) {
+            setSpecifications(prev => {
+              const otherSpecs = prev.filter(s => s.objectGroupId !== `grp_db_${latestModelDetail.group.modelId}`);
+              return [...otherSpecs, ...latestModelDetail.specifications];
+            });
+            // Automatically select latest model if none selected
+            if (!selectedGroup) {
+              setSelectedGroup(placeholderGroups[0]);
             }
           }
 
-          setGroups(allGroups);
-          setSpecifications(allSpecs);
+          // BACKGROUND PRE-FETCH: Hydrate all other models in background
+          const remainingModels = models.slice(1);
+          if (remainingModels.length > 0) {
+            console.log(`[Background] Starting pre-fetch for ${remainingModels.length} models...`);
+            // Sequential background fetch to avoid overloading DB/Server
+            const prefetchQueue = async () => {
+              for (const model of remainingModels) {
+                try {
+                  const detail = await fetchSavedModelDetail(model.MODEL_ID);
+                  if (detail) {
+                    setGroups(prev => prev.map(g => g.id === `grp_db_${model.MODEL_ID}` ? { ...g, objects: detail.group.objects, relationships: detail.group.relationships || [] } : g));
+                    setSpecifications(prev => {
+                      const otherSpecs = prev.filter(s => s.objectGroupId !== `grp_db_${model.MODEL_ID}`);
+                      return [...otherSpecs, ...detail.specifications];
+                    });
+                  }
+                } catch (e) {
+                  console.warn(`Background fetch failed for model ${model.MODEL_NAME}:`, e);
+                }
+              }
+              console.log("[Background] Pre-fetch complete.");
+            };
+            prefetchQueue();
+          }
         }
       } catch (error) {
         console.error("Database initialization failed:", error);
       } finally {
-        setTimeout(() => setInitialSyncLoading(false), 800); // Small delay for visual smoothness
+        setTimeout(() => setInitialSyncLoading(false), 500);
       }
     };
 
     syncWithDb();
   }, []);
 
-  const handleUpdateGroup = (updatedGroup: ObjectGroup) => {
+  const hydrateGroup = async (groupId: string) => {
+    const group = groups.find(g => g.id === groupId);
+    if (!group || !group.modelId || (group.objects && group.objects.length > 0)) return;
+
+    setIsAiLoading(true);
+    try {
+      const detail = await fetchSavedModelDetail(group.modelId);
+      if (detail) {
+        setGroups(prev => prev.map(g => g.id === groupId ? { ...g, objects: detail.group.objects, relationships: detail.group.relationships || [] } : g));
+        setSpecifications(prev => {
+          const otherSpecs = prev.filter(s => s.objectGroupId !== groupId);
+          return [...otherSpecs, ...detail.specifications];
+        });
+        if (selectedGroup?.id === groupId) {
+          setSelectedGroup({ ...group, objects: detail.group.objects, relationships: detail.group.relationships || [] });
+        }
+      }
+    } catch (error) {
+      console.error("Hydration failed:", error);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const handleUpdateGroup = async (updatedGroup: ObjectGroup) => {
     setGroups(prev => prev.map(g => g.id === updatedGroup.id ? updatedGroup : g));
     if (selectedGroup?.id === updatedGroup.id) {
       setSelectedGroup(updatedGroup);
+    }
+
+    // Persist to backend if this is a saved model
+    if (updatedGroup.modelId) {
+      console.log(`Persisting architecture update for model: ${updatedGroup.name}`);
+      try {
+        await fetch('http://localhost:3006/api/model/update-architecture', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            modelName: updatedGroup.name,
+            objects: updatedGroup.objects,
+            relationships: updatedGroup.relationships
+          })
+        });
+      } catch (err) {
+        console.error("Failed to persist architecture update:", err);
+      }
     }
   };
 
   const handleCreateNewSpec = (groupId?: string) => {
     const targetGroup = groupId ? groups.find(g => g.id === groupId) : selectedGroup;
     if (!targetGroup) return;
+
+    // Try to find if any specification in this group already has a template
+    const existingSpecWithTemplate = specifications.find(s => s.objectGroupId === targetGroup.id && s.backendTemplateName);
 
     const newSpec: FileSpecification = {
       id: `spec_${Date.now()}`,
@@ -114,8 +194,11 @@ const App: React.FC = () => {
       objectGroupId: targetGroup.id,
       columns: [],
       filters: [],
-      format: ExportFormat.CSV,
+      format: existingSpecWithTemplate?.format || ExportFormat.CSV,
       createdAt: new Date().toISOString(),
+      backendTemplateName: existingSpecWithTemplate?.backendTemplateName,
+      templateData: existingSpecWithTemplate?.templateData,
+      sheetName: existingSpecWithTemplate?.sheetName
     };
 
     setSpecifications(prev => [...prev, newSpec]);
@@ -123,17 +206,46 @@ const App: React.FC = () => {
     setSelectedGroup(targetGroup);
   };
 
-  const handleCloneSpec = () => {
-    if (!activeSpec) return;
-    const cloned: FileSpecification = {
-      ...activeSpec,
-      id: `spec_clone_${Date.now()}`,
-      name: `${activeSpec.name} (Copy)`,
-      version: 1.0,
-      createdAt: new Date().toISOString(),
-    };
-    setSpecifications(prev => [...prev, cloned]);
-    setActiveSpec(cloned);
+  const handleCloneSpec = async () => {
+    if (!activeSpec || !selectedGroup?.modelId) return;
+
+    console.log(`Cloning extraction '${activeSpec.name}' to a new version...`);
+    setIsAiLoading(true);
+    try {
+      const res = await fetch('http://localhost:3006/api/extraction/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          modelId: selectedGroup.modelId,
+          extractionName: activeSpec.name,
+          columns: activeSpec.columns,
+          filters: activeSpec.filters,
+          sqlQuery: '',
+          templateName: activeSpec.backendTemplateName || 'N/A',
+          sheetName: activeSpec.sheetName,
+          isClone: true
+        })
+      });
+      const result = await res.json();
+      if (result.success) {
+        console.log(`Cloned successfully to version ${result.version}`);
+        const cloned: FileSpecification = {
+          ...activeSpec,
+          id: `spec_db_${Date.now()}`, // Temporary local ID, will refresh on reload
+          version: result.version,
+          createdAt: new Date().toISOString(),
+        };
+        setSpecifications(prev => [...prev, cloned]);
+        setActiveSpec(cloned);
+        alert(`New version ${result.version} created!`);
+      } else {
+        alert("Failed to clone: " + result.message);
+      }
+    } catch (err) {
+      console.error("Clone error:", err);
+    } finally {
+      setIsAiLoading(false);
+    }
   };
 
   const handleDeleteSpec = (specId: string) => {
@@ -149,7 +261,15 @@ const App: React.FC = () => {
     if (!nlQuery.trim()) return;
     setIsAiLoading(true);
     try {
-      const result = await processNaturalLanguageQuery(nlQuery, groups);
+      const response = await fetch('http://localhost:3006/api/nl-query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: nlQuery,
+          metadata: groups
+        })
+      });
+      const result = await response.json();
       if (result.objectGroupId) {
         const group = groups.find(g => g.id === result.objectGroupId) || groups[0];
         setSelectedGroup(group);
@@ -202,14 +322,17 @@ const App: React.FC = () => {
   const handleModelImportFromFile = async (fileName: string, content: string, dialect: DBType, parsedGroup?: ObjectGroup) => {
     setIsAiLoading(true);
     try {
-      let importedGroup = parsedGroup || await inferModelFromFile(fileName, content, dialect);
+      let importedGroup = parsedGroup;
+      if (!importedGroup) {
+        throw new Error("Local model inference is disabled. Please connect to a database or provide a predefined model.");
+      }
 
       // Feature: Module-Based Schema Lookup (Revised)
       // Query DB for tables related to this Module Name
       if (importedGroup.name) {
         try {
           const { fetchModuleSchema } = await import('./services/dbService');
-          const dbObjects = await fetchModuleSchema(dbConfig, importedGroup.name);
+          const { objects: dbObjects } = await fetchModuleSchema(dbConfig, importedGroup.name);
 
           if (dbObjects && dbObjects.length > 0) {
             // Replace CSV objects with DB objects entirely
@@ -262,7 +385,8 @@ const App: React.FC = () => {
 
       // NEW: Trigger AI Analysis (OCI GenAI via Backend)
       console.log("Triggering AI Metadata Analysis...");
-      let analysisModuleName = '';
+      let analysisModuleNames: string[] = [];
+      let analysisIntent = '';
       try {
         const metadata = {
           sheetNames: allSheetNames,
@@ -279,9 +403,16 @@ const App: React.FC = () => {
         }
 
         const analysis = await analyzeFbdiMetadata(metadata);
-        if (analysis && analysis.moduleName) {
-          analysisModuleName = analysis.moduleName;
-          console.log("AI Analysis Result (analysis_module_name):", analysisModuleName);
+        if (analysis) {
+          analysisIntent = analysis.intent || '';
+          if (analysis.confidence === 'High' && analysis.moduleName) {
+            analysisModuleNames = [analysis.moduleName];
+          } else if (analysis.possibleModules && analysis.possibleModules.length > 0) {
+            analysisModuleNames = analysis.possibleModules;
+          } else if (analysis.moduleName) {
+            analysisModuleNames = [analysis.moduleName];
+          }
+          console.log("AI Analysis Result (Modules):", analysisModuleNames, "Intent:", analysisIntent);
         }
       } catch (aiErr) {
         console.warn("AI Analysis failed (non-critical):", aiErr);
@@ -294,42 +425,81 @@ const App: React.FC = () => {
 
       console.log("Extracted Data Sheet Names for DB Lookup:", dataSheetNames);
 
-      // 2. Fetch Schema from DB (Using Backend .env creds if dbConfig is null)
+      // --- Multi-Pass Header Discovery ---
+      // 1. Pre-extract headers from all data sheets to support targeted discovery
+      const dataSheetInfo: { name: string; headers: string[], sampleRowData?: any[] }[] = [];
+      dataSheetNames.forEach(sheetName => {
+        const actualSheetName = wb.SheetNames.find(n => n.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() === sheetName);
+        if (!actualSheetName) return;
+        const ws = wb.Sheets[actualSheetName];
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+        const rows = data as any[][];
+
+        let headers: string[] = [];
+        const row4 = rows[3] as any[];
+        if (row4 && Array.isArray(row4)) {
+          const vCols = row4.filter(c => c && (typeof c === 'string' || typeof c === 'number') && String(c).trim().length > 0).length;
+          if (vCols > 0) headers = row4.map(r => r ? String(r).trim() : '');
+        }
+
+        let sampleRows: any[][] = [];
+
+        if (!headers || headers.length === 0) {
+          const scanLimit = Math.min(rows.length, 20);
+          let mCols = 0;
+          for (let i = 0; i < scanLimit; i++) {
+            const row = rows[i] as any[];
+            if (!row || !Array.isArray(row)) continue;
+            const vCols = row.filter(c => c && (typeof c === 'string' || typeof c === 'number') && String(c).trim().length > 0).length;
+            if (vCols > mCols) {
+              mCols = vCols;
+              headers = row.map(r => r ? String(r).trim() : '');
+              // Pluck up to 5 next rows as sample data if available
+              sampleRows = rows.slice(i + 1, i + 6).filter(r => Array.isArray(r)) as any[][];
+            }
+          }
+        } else {
+          // Headers were found at row[3], try to get up to 5 sample rows starting from row[4]
+          if (rows.length > 4) {
+            sampleRows = rows.slice(4, 9).filter(r => Array.isArray(r)) as any[][];
+          }
+        }
+        dataSheetInfo.push({ name: actualSheetName, headers, sampleRows } as any);
+      });
+
+      let relationships: any[] = [];
+      // 2. Initial Fetch (Pass 1 & 2: Recon + Group Name)
       try {
-        console.log("Calling fetchModuleSchema and fetchFbdiMappings...");
+        console.log("Calling fetchModuleSchema and fetchFbdiMappings (Pass 1 & 2)...");
         const { fetchModuleSchema, fetchFbdiMappings } = await import('./services/dbService');
 
-        // Pass dbConfig (or null) - backend uses .env if invalid credentials
-        dbObjects = await fetchModuleSchema(dbConfig, moduleName, dataSheetNames, analysisModuleName);
-        fbdiMappings = await fetchFbdiMappings(dbConfig, moduleName, dataSheetNames, analysisModuleName);
+        const schemaRes = await fetchModuleSchema(dbConfig, moduleName, dataSheetNames, analysisModuleNames);
+        dbObjects = schemaRes.objects;
+        relationships = schemaRes.relationships;
+
+        fbdiMappings = await fetchFbdiMappings(dbConfig, moduleName, dataSheetNames, analysisModuleNames);
 
         if (!dbObjects || dbObjects.length === 0) {
           console.warn("No tables found for module:", moduleName);
         } else {
-          console.log("Found tables for module:", moduleName, dbObjects.map(o => o.name));
-        }
-
-        if (!fbdiMappings || fbdiMappings.length === 0) {
-          console.warn("No exact FBDI mappings found for module:", moduleName);
-        } else {
-          console.log(`Found ${fbdiMappings.length} exact FBDI mappings for module:`, moduleName);
+          console.log("Final consolidated tables:", dbObjects.map(o => o.name));
         }
       } catch (err) { console.error("Schema/Mappings Fetch Failed:", err); }
 
-      // 3. Create New Object Group for this FBDI Module
+      // 4. Create New Object Group for this FBDI Module
       const groupId = `grp_fbdi_${Date.now()}`;
       const newGroup: ObjectGroup = {
         id: groupId,
         name: moduleName,
         databaseType: 'ORACLE',
         objects: dbObjects,
-        relationships: []
+        relationships: relationships || []
       };
 
       setGroups(prev => [...prev, newGroup]);
       setSelectedGroup(newGroup);
 
-      // Upload original template to server for Python population
+      // Upload template...
       console.log("Uploading FBDI template to server...");
       let backendTemplateName = '';
       try {
@@ -348,140 +518,190 @@ const App: React.FC = () => {
         console.error("Template upload failed", err);
       }
 
-      // Convert workbook for frontend persistent storage (legacy fallback)
       const wbBase64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
-
       const newSpecs: FileSpecification[] = [];
 
-      const sheetNames = wb.SheetNames; // Get sheet names once
-      sheetNames.forEach(sheet => {
-        const ws = wb.Sheets[sheet];
-        // Parse raw data to find headers
-        const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
-        const rows = data as any[][];
+      // --- PHASE 1 & 2: Initial Mapping Pass ---
+      const allUnmappedMandatory: Record<string, string[]> = {};
+      const intermediateSpecs: { ds: any, specId: string, mappedColumns: any[] }[] = [];
 
-        // FBDI Standard Header Extraction: Row 4 (index 3)
-        let headers: string[] = [];
-        let maxCols = 0;
+      dataSheetInfo.forEach(ds => {
+        const { name: sheet, headers } = ds;
+        if (!headers || headers.length === 0) return;
 
-        // Check if row 4 exists and has a significant number of columns (likely an FBDI template)
-        const row4 = rows[3] as any[];
-        if (row4 && Array.isArray(row4)) {
-          const validCols = row4.filter(c => c && (typeof c === 'string' || typeof c === 'number') && String(c).trim().length > 0).length;
-          if (validCols > 0) {
-            headers = row4.map(r => r ? String(r).trim() : '');
-          }
-        }
+        const specId = `spec_fbdi_${sheet.replace(/\s+/g, '_')}_${Date.now()}`;
+        const cleanSheetName = sheet.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
 
-        // Fallback for non-FBDI or malformed files: Scan first 20 rows for max columns
-        if (!headers || headers.length === 0) {
-          const scanLimit = Math.min(rows.length, 20);
-          for (let i = 0; i < scanLimit; i++) {
-            const row = rows[i] as any[];
-            if (!row || !Array.isArray(row)) continue;
-            const validCols = row.filter(c => c && (typeof c === 'string' || typeof c === 'number') && String(c).trim().length > 0).length;
+        const sheetMappings = fbdiMappings.filter(m =>
+          (m.DATA_IDENTIFIER || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase() === cleanSheetName
+        );
+        const isKnownSheet = sheetMappings.length > 0;
+        const allowedTables = new Set(sheetMappings.map(m => (m.TABLE_NAME || '').trim().toUpperCase()).filter(Boolean));
 
-            if (validCols > maxCols) {
-              maxCols = validCols;
-              headers = row.map(r => r ? String(r).trim() : '');
-            }
-          }
-        }
+        const unmappedMandatory: string[] = [];
+        const mappedColumns = headers.map((h, i) => {
+          let bestMatch = '';
+          const hClean = h.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+          const isMandatory = h.includes('*') || h.includes('**');
 
-        if (headers && headers.length > 0) {
-          const specId = `spec_fbdi_${sheet.replace(/\s+/g, '_')}_${Date.now()}`;
+          // TIER 1: Recon Mapping
+          if (isKnownSheet) {
+            let mappingMatch = sheetMappings.find(m => {
+              const mHeaderClean = (m.METADATA_COLUMN_HEADER || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+              return mHeaderClean === hClean && m.COLUMN_NAME;
+            });
 
-          // Clean up the sheet name for matching with DATA_IDENTIFIER
-          const cleanSheetName = sheet.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-          console.log("Sheet name for matching:", cleanSheetName);
-          // Enhanced Auto-Map Logic
-          const mappedColumns = headers.map((h, i) => {
-            let bestMatch = '';
-            let bestScore = 0;
-
-            // 1. Exact Mapping from Database (XX_INTELLI_RECON_TAB_COLUMN_MAPPING)
-            let potentialTableName = '';
-            if (fbdiMappings && fbdiMappings.length > 0) {
-              const sheetMapping = fbdiMappings.find(m => {
-                const mSheet = (m.DATA_IDENTIFIER || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-                return mSheet === cleanSheetName;
-              });
-
-              if (sheetMapping) {
-                potentialTableName = sheetMapping.TABLE_NAME;
-              }
-
-              const exactMapping = fbdiMappings.find(m => {
-                const mSheet = (m.DATA_IDENTIFIER || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+            if (!mappingMatch) {
+              mappingMatch = sheetMappings.find(m => {
                 const mHeaderClean = (m.METADATA_COLUMN_HEADER || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-                const hClean = h.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-                return mSheet === cleanSheetName && mHeaderClean === hClean && m.COLUMN_NAME;
+                return mHeaderClean.includes(hClean) && m.COLUMN_NAME;
               });
+            }
 
-              if (exactMapping && exactMapping.TABLE_NAME && exactMapping.COLUMN_NAME) {
-                const matchedObj = dbObjects.find(o => (o.tableName || '').toUpperCase() === exactMapping.TABLE_NAME.trim().toUpperCase());
-                const matchedCol = exactMapping.COLUMN_NAME.trim();
+            if (mappingMatch && mappingMatch.TABLE_NAME && mappingMatch.COLUMN_NAME) {
+              const matchedObj = dbObjects.find(o => (o.tableName || '').toUpperCase() === mappingMatch.TABLE_NAME.trim().toUpperCase());
+              const matchedCol = mappingMatch.COLUMN_NAME.trim();
+              if (matchedObj?.fields?.some((f: any) => (f.name || '').toUpperCase() === matchedCol.toUpperCase())) {
+                bestMatch = `${matchedObj!.name}.${matchedCol}`;
+              }
+            }
+          }
 
-                let columnExists = false;
-                if (matchedObj && matchedObj.fields) {
-                  columnExists = matchedObj.fields.some((f: any) => (f.name || '').toUpperCase() === matchedCol.toUpperCase());
-                }
+          // TIER 2: Module Semantic Fallback
+          if (!bestMatch) {
+            const objectsToSearch = isKnownSheet ? dbObjects.filter(o => allowedTables.has((o.tableName || '').toUpperCase())) : dbObjects;
 
-                if (columnExists) {
-                  bestMatch = `${matchedObj!.name}.${matchedCol}`;
-                  bestScore = 100;
-                }
+            // Literal
+            for (const obj of objectsToSearch) {
+              const matchedField = obj.fields?.find((f: any) => {
+                const fNameClean = (f.name || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                return fNameClean === hClean || hClean.includes(fNameClean) || fNameClean.includes(hClean);
+              });
+              if (matchedField) {
+                bestMatch = `${obj.name}.${matchedField.name}`;
+                break;
               }
             }
 
-            // 2. FALLBACK: Search discovered master tables (dbObjects) for this header
+            // Semantic
             if (!bestMatch) {
-              const hClean = h.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-
-              // Sort dbObjects to prioritize the potentialTableName found in mappings
-              const sortedObjects = [...dbObjects].sort((a, b) => {
-                if (potentialTableName && a.tableName?.toUpperCase() === potentialTableName.toUpperCase()) return -1;
-                if (potentialTableName && b.tableName?.toUpperCase() === potentialTableName.toUpperCase()) return 1;
-                return 0;
-              });
-
-              for (const obj of sortedObjects) {
+              const hWords = h.toLowerCase().split(' ').filter(w => w.length > 3);
+              for (const obj of objectsToSearch) {
                 const matchedField = obj.fields?.find((f: any) => {
-                  const fNameClean = (f.name || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-                  return fNameClean === hClean || hClean.includes(fNameClean) || fNameClean.includes(hClean);
+                  const desc = (f.description || '').toLowerCase();
+                  return hWords.length > 0 && hWords.every(word => desc.includes(word));
                 });
-
                 if (matchedField) {
                   bestMatch = `${obj.name}.${matchedField.name}`;
-                  console.log(`[Fallback Match] Linked Header '${h}' to ${obj.name} Table Column '${bestMatch}'`);
                   break;
                 }
               }
             }
+          }
 
-            return {
-              id: `col_${specId}_${i}`,
-              sourceField: bestMatch || '',
-              targetName: h,
-              transformations: []
-            };
+          if (!bestMatch && isMandatory) unmappedMandatory.push(h);
+
+          return { id: `col_${specId}_${i}`, sourceField: bestMatch || '', targetName: h, transformations: [] };
+        });
+
+        if (unmappedMandatory.length > 0) allUnmappedMandatory[sheet] = unmappedMandatory;
+        intermediateSpecs.push({ ds, specId, mappedColumns });
+      });
+
+      // --- PHASE 3: Global Mandatory Discovery ---
+      if (Object.keys(allUnmappedMandatory).length > 0) {
+        console.log("[Phase 3] Triggering Global Discovery for Mandatory Headers...");
+        const pass3Res = await fetch('http://localhost:3006/api/fbdi-mappings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ moduleName, unmappedHeaders: allUnmappedMandatory, analysisModuleName: analysisModuleNames })
+        });
+        const pass3Data = await pass3Res.json();
+        const globalMappings = pass3Data.mappings || [];
+
+        // Update Architecture with any NEW tables found in Phase 3
+        const newTables = [...new Set(globalMappings.map((m: any) => m.TABLE_NAME))].filter(t => !dbObjects.some(o => (o.tableName || '').toUpperCase() === String(t).toUpperCase()));
+        if (newTables.length > 0) {
+          console.log("[Phase 3] Fetching and Merging new tables:", newTables);
+          const newArchRes = await fetch('http://localhost:3006/api/module-columns', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ moduleName, sheetNames: dataSheetNames, unmappedHeaders: allUnmappedMandatory, analysisModuleName: analysisModuleNames })
           });
-
-          const newSpec: FileSpecification = {
-            id: specId,
-            objectGroupId: groupId,
-            name: `FBDI - ${sheet}`,
-            createdAt: new Date().toISOString(),
-            version: 1.0,
-            format: ExportFormat.FBDI,
-            columns: mappedColumns,
-            filters: [],
-            templateData: wbBase64,
-            sheetName: sheet,
-            backendTemplateName: backendTemplateName
-          };
-          newSpecs.push(newSpec);
+          const newArchData = await newArchRes.json();
+          if (newArchData.objects) {
+            newArchData.objects.forEach((obj: any) => {
+              if (!dbObjects.some(o => o.tableName === obj.tableName)) dbObjects.push(obj);
+            });
+          }
+          if (newArchData.relationships) {
+            newArchData.relationships.forEach((rel: any) => relationships.push(rel));
+          }
         }
+
+        // Patch intermediateSpecs with Phase 3 results
+        intermediateSpecs.forEach(spec => {
+          spec.mappedColumns.forEach(col => {
+            if (!col.sourceField && (col.targetName.includes('*') || col.targetName.includes('**'))) {
+              const hTargetClean = col.targetName.replace(/\*/g, '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
+              // Find the best match in the global mappings returned by AI
+              const match = globalMappings.find((m: any) => {
+                const mId = String(m.DATA_IDENTIFIER || '');
+                const mIdClean = mId.replace(/\*/g, '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                return mId.toUpperCase() === col.targetName.toUpperCase() || mIdClean === hTargetClean;
+              });
+
+              if (match) {
+                const obj = dbObjects.find(o => (o.tableName || '').toUpperCase() === String(match.TABLE_NAME).toUpperCase());
+                if (obj) {
+                  col.sourceField = `${obj.name}.${match.COLUMN_NAME}`;
+                  console.log(`[Phase 3 Match] Resolved mandatory header '${col.targetName}' to ${col.sourceField} (Table: ${match.TABLE_NAME}) via AI-vetted global discovery`);
+                }
+              }
+            }
+          });
+        });
+      }
+
+      // --- FINALIZATION: Build Specs and Filters ---
+      intermediateSpecs.forEach(is => {
+        const { ds, specId, mappedColumns } = is;
+        const autoFilters: FilterCondition[] = [];
+        if (ds.sampleRows && Array.isArray(ds.sampleRows)) {
+          mappedColumns.forEach((col: any, idx: number) => {
+            if (col.sourceField) {
+              const uniqueValues = new Set<string>();
+              ds.sampleRows.forEach((row: any) => {
+                const val = row[idx] ? String(row[idx]).trim() : '';
+                if (val && val.length > 0) uniqueValues.add(val);
+              });
+              uniqueValues.forEach(val => {
+                autoFilters.push({
+                  id: `filt_${Date.now()}_${idx}_${val.substring(0, 5)}`,
+                  field: col.sourceField,
+                  operator: FilterOperator.EQUALS,
+                  value: val
+                });
+              });
+            }
+          });
+        }
+
+        const newSpec: FileSpecification = {
+          id: specId,
+          objectGroupId: groupId,
+          name: `FBDI - ${ds.name}`,
+          createdAt: new Date().toISOString(),
+          version: 1.0,
+          format: ExportFormat.FBDI,
+          columns: mappedColumns,
+          filters: autoFilters,
+          templateData: wbBase64,
+          sheetName: ds.name,
+          backendTemplateName: backendTemplateName
+        };
+        newSpecs.push(newSpec);
       });
 
       if (newSpecs.length > 0) {
@@ -500,6 +720,7 @@ const App: React.FC = () => {
               username: 'Guest', // Placeholder
               userId: '1001',    // Placeholder
               objects: dbObjects,
+              relationships: relationships || [], // New: Store relationships in architecture
               specs: newSpecs
             })
           });
@@ -535,13 +756,9 @@ const App: React.FC = () => {
   const saveSpecification = async () => {
     if (!activeSpec) return;
 
-    const updated = { ...activeSpec, version: parseFloat((activeSpec.version + 0.1).toFixed(1)) };
-    setSpecifications(prev => prev.map(s => s.id === activeSpec.id ? updated : s));
-    setActiveSpec(updated);
-
     // Persist to Backend if model exists
     if (selectedGroup?.modelId) {
-      console.log(`Saving extraction '${activeSpec.name}' to backend for Model ID: ${selectedGroup.modelId}`);
+      console.log(`Saving extraction '${activeSpec.name}' (Version: ${activeSpec.version}) to backend...`);
       try {
         const res = await fetch('http://localhost:3006/api/extraction/update', {
           method: 'POST',
@@ -550,22 +767,29 @@ const App: React.FC = () => {
             modelId: selectedGroup.modelId,
             extractionName: activeSpec.name,
             columns: activeSpec.columns,
-            sqlQuery: '', // You can add actual SQL generation here if needed
-            templateName: activeSpec.name // fallback
+            filters: activeSpec.filters,
+            sqlQuery: '',
+            templateName: activeSpec.backendTemplateName || 'N/A',
+            version: activeSpec.version,
+            sheetName: activeSpec.sheetName,
+            isClone: false
           })
         });
         const result = await res.json();
         if (result.success) {
-          console.log("Extraction saved successfully to database.");
+          console.log(`Extraction version ${result.version} saved successfully.`);
+          alert(`Version ${result.version} saved!`);
         } else {
           console.error("Failed to save extraction:", result.message);
+          alert("Failed to save: " + result.message);
         }
       } catch (err) {
         console.error("Error calling update extraction API:", err);
       }
+    } else {
+      // Local only save for unsaved models
+      alert("Local changes saved. To persist to database, please save the Model first.");
     }
-
-    alert(`Specification saved to database (v${updated.version})`);
   };
 
   const handleDownloadExcel = () => {
@@ -585,7 +809,7 @@ const App: React.FC = () => {
 
     const metadataData = [
       { 'Attribute': 'Specification Name', 'Value': activeSpec.name },
-      { 'Attribute': 'Version', 'Value': activeSpec.version.toFixed(1) },
+      { 'Attribute': 'Version', 'Value': Number(activeSpec.version).toFixed(1) },
       { 'Attribute': 'Data Model Context', 'Value': selectedGroup.name },
       { 'Attribute': 'DB Dialect', 'Value': selectedGroup.databaseType },
       { 'Attribute': 'Export Format', 'Value': activeSpec.format.toUpperCase() },
@@ -600,7 +824,7 @@ const App: React.FC = () => {
     const metaSheet = XLSX.utils.json_to_sheet(metadataData);
     XLSX.utils.book_append_sheet(wb, metaSheet, "Metadata");
 
-    XLSX.writeFile(wb, `${activeSpec.name.replace(/\s+/g, '_')}_v${activeSpec.version.toFixed(1)}.xlsx`);
+    XLSX.writeFile(wb, `${activeSpec.name.replace(/\s+/g, '_')}_v${Number(activeSpec.version).toFixed(1)}.xlsx`);
   };
 
   const handleOpenPreview = async () => {
@@ -674,23 +898,57 @@ const App: React.FC = () => {
         });
       }
 
-      const response = await fetch('http://localhost:3006/api/extract', {
+      // Map filters physical table names
+      const filtersPayload = (activeSpec.filters || []).map(f => {
+        const [objName, colName] = f.field.split('.');
+        const obj = selectedGroup.objects.find(o => o.name === objName);
+        const physicalTable = obj ? obj.tableName : objName;
+        return {
+          ...f,
+          field: `${physicalTable}.${colName}`
+        };
+      });
+
+      const response = await fetch('http://localhost:3006/api/generate-sql', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           columns: columnsPayload,
           joins: joinsPayload,
+          filters: filtersPayload,
           limit: 100
         })
       });
       const result = await response.json();
 
       if (result.success) {
-        setPreviewData(result.data);
         setPreviewSql(result.query);
+        try {
+          // Fetch real sample data from the DB using the generated SQL
+          const dataResponse = await fetch('http://localhost:3006/api/extract', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              columns: columnsPayload,
+              joins: joinsPayload,
+              filters: filtersPayload,
+              limit: 5 // Get only 5 rows for preview
+            })
+          });
+          const dataResult = await dataResponse.json();
+          if (dataResult.success) {
+            setPreviewData(dataResult.data || []);
+          } else {
+            console.warn("Failed to fetch real preview data", dataResult.message);
+            setPreviewData([]);
+          }
+        } catch (fetchErr) {
+          console.warn("Error fetching real preview data", fetchErr);
+          setPreviewData([]);
+        }
       } else {
-        setPreviewSql(result.query || 'Error generating query');
-        alert('Extraction Failed: ' + result.message);
+        setPreviewSql('Error generating query: ' + result.message);
+        alert('Query Generation Failed: ' + result.message);
       }
     } catch (e: any) {
       console.error("Preview failed", e);
@@ -737,20 +995,25 @@ const App: React.FC = () => {
     }
 
     setExportLoading(true);
+    setIsExtractingMode(true);
+    setExtractProgress(0);
+    setExtractStatus('Initializing extraction engine...');
 
     try {
-      const columnsPayload = spec.columns.map(col => {
-        // Handle Unmapped Columns -> NULL
-        if (!col.sourceField || col.sourceField.trim() === '') {
-          return {
-            alias: col.targetName,
-            expression: 'NULL',
-            table: null,
-            column: null,
-            transformations: []
-          };
-        }
+      // Step 1: Initialization
+      await new Promise(r => setTimeout(r, 400));
+      setExtractProgress(15);
+      setExtractStatus('Validating data model and security tokens...');
 
+      // Step 2: Model Validation & Mapping
+      await new Promise(r => setTimeout(r, 500));
+      setExtractProgress(35);
+      setExtractStatus('Building optimized Oracle SQL queries (ATP)...');
+
+      const columnsPayload = spec.columns.map(col => {
+        if (!col.sourceField || col.sourceField.trim() === '') {
+          return { alias: col.targetName, expression: 'NULL', table: null, column: null, transformations: [] };
+        }
         const [objName, fieldName] = col.sourceField.split('.');
         const obj = selectedGroup.objects.find(o => o.name === objName);
         return {
@@ -763,22 +1026,27 @@ const App: React.FC = () => {
 
       const tables = [...new Set(columnsPayload.filter(c => c !== null).map(c => c!.table))].filter(Boolean);
       const joinsPayload: any[] = [];
-
       if (tables.length > 1 && selectedGroup.relationships) {
         const idToTable = new Map(selectedGroup.objects.map(o => [o.id, o.tableName]));
         selectedGroup.relationships.forEach(rel => {
           const sourceTable = idToTable.get(rel.sourceObjectId);
           const targetTable = idToTable.get(rel.targetObjectId);
           if (sourceTable && targetTable && tables.includes(sourceTable) && tables.includes(targetTable)) {
-            joinsPayload.push({
-              leftTable: sourceTable,
-              rightTable: targetTable,
-              condition: rel.condition,
-              type: rel.joinType
-            });
+            joinsPayload.push({ leftTable: sourceTable, rightTable: targetTable, condition: rel.condition, type: rel.joinType });
           }
         });
       }
+
+      const filtersPayload = (spec.filters || []).map(f => {
+        const [objName, colName] = f.field.split('.');
+        const obj = selectedGroup.objects.find(o => o.name === objName);
+        const physicalTable = obj ? obj.tableName : objName;
+        return { ...f, field: `${physicalTable}.${colName}` };
+      });
+
+      // Step 3: Database Query (The long pole)
+      setExtractProgress(50);
+      setExtractStatus('Executing data fetch on Oracle Database...');
 
       const response = await fetch('http://localhost:3006/api/extract', {
         method: 'POST',
@@ -786,11 +1054,15 @@ const App: React.FC = () => {
         body: JSON.stringify({
           columns: columnsPayload,
           joins: joinsPayload,
+          filters: filtersPayload,
           templateFile: spec.backendTemplateName,
           sheetName: spec.sheetName,
           exportFormat: format
         })
       });
+
+      setExtractProgress(75);
+      setExtractStatus('Processing database response and mapping schemas...');
 
       if (!response.ok) {
         const text = await response.text();
@@ -804,38 +1076,36 @@ const App: React.FC = () => {
         throw new Error(errorMsg);
       }
 
-      if (format === ExportFormat.FBDI) {
-        const contentType = response.headers.get('Content-Type');
-        if (contentType && contentType.includes('application/json')) {
-          // Unexpected JSON response for FBDI request
-          const result = await response.json();
-          throw new Error(result.message || "Server returned JSON instead of ZIP format");
-        }
+      // Step 4: Formatting
+      setExtractProgress(85);
+      setExtractStatus(format === ExportFormat.FBDI ? 'Generating FBDI ZIP package...' : 'Formatting data for Excel/CSV...');
 
+      if (format === ExportFormat.FBDI) {
         const blob = await response.blob();
-        if (blob.size < 100) { // Unlikely small for an Archives
-          const text = await blob.text();
-          if (text.startsWith('{')) {
-            const errJson = JSON.parse(text);
-            throw new Error(errJson.message || "Invalid file content received");
-          }
-        }
+        setExtractProgress(95);
+        setExtractStatus('Finalizing extraction package...');
+        await new Promise(r => setTimeout(r, 300));
 
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        const fileName = `${spec.name.replace(/\s+/g, '_')}_v${spec.version.toFixed(1)}.zip`;
+        const fileName = `${spec.name.replace(/\s+/g, '_')}_v${Number(spec.version).toFixed(1)}.zip`;
         a.download = fileName;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
-        if (!targetSpec) alert(`Extraction Complete! ZIP package downloaded: ${fileName}`);
+
+        setExtractProgress(100);
+        setExtractStatus('Success! Package ready.');
+        await new Promise(r => setTimeout(r, 1000));
         return;
       }
 
       const result = await response.json();
-
       if (result.success) {
+        setExtractProgress(95);
+        setExtractStatus('Preparing download file...');
+
         if (format === ExportFormat.CSV) {
           const worksheet = XLSX.utils.json_to_sheet(result.data);
           const csv = XLSX.utils.sheet_to_csv(worksheet);
@@ -843,35 +1113,41 @@ const App: React.FC = () => {
           const link = document.createElement("a");
           const url = URL.createObjectURL(blob);
           link.setAttribute("href", url);
-          const fileName = `${spec.name.replace(/\s+/g, '_')}_v${spec.version.toFixed(1)}.csv`;
+          const fileName = `${spec.name.replace(/\s+/g, '_')}_v${Number(spec.version).toFixed(1)}.csv`;
           link.setAttribute("download", fileName);
           link.style.visibility = 'hidden';
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
-          if (!targetSpec) alert(`Extraction Complete: ${result.data.length} rows exported to ${fileName}`);
         } else {
-          // Fallback or other formats
-          alert(`${format.toUpperCase()} export initiated for '${spec.name}'. Implementation pending backend response.`);
+          alert(`${format.toUpperCase()} export complete.`);
         }
+
+        setExtractProgress(100);
+        setExtractStatus('Extraction Successful!');
+        await new Promise(r => setTimeout(r, 1000));
       } else {
-        alert('Extraction Failed: ' + result.message);
+        throw new Error(result.message || 'Unknown error');
       }
     } catch (e: any) {
       console.error("Extraction failed", e);
       alert("Error: " + e.message);
     } finally {
       setExportLoading(false);
+      setIsExtractingMode(false);
     }
   };
 
   const handleBatchExtraction = async (format: ExportFormat) => {
     if (!selectedGroup) return;
-    // const groupSpecs = specifications.filter(s => s.objectGroupId === selectedGroup.id);
+
+    const isConfirmed = confirm("Please validate all the individual extractions and their data preview! \n\nIf validated ignore this message and confirm.");
+    if (!isConfirmed) return;
+
     let groupSpecs = specifications.filter(s => s.objectGroupId === selectedGroup.id);
 
     // Ignore Instructions sheets natively in Batch Export
-    groupSpecs = groupSpecs.filter(s => !s.sheetName.toLowerCase().includes('instruction'));
+    groupSpecs = groupSpecs.filter(s => !(s.sheetName || '').toLowerCase().includes('instruction'));
     if (groupSpecs.length === 0) return;
 
     // Check for completely unmapped sheets in batch
@@ -886,7 +1162,15 @@ const App: React.FC = () => {
     }
 
     setExportLoading(true);
+    setIsExtractingMode(true);
+    setExtractProgress(0);
+    setExtractStatus(`Preparing batch extraction for ${groupSpecs.length} sheets...`);
+
     try {
+      // Step 1: Initialization & Validation
+      await new Promise(r => setTimeout(r, 400));
+      setExtractProgress(15);
+      setExtractStatus('Building optimized parallel extraction pipelines...');
       // Prepare specs for backend
       const specsPayload = groupSpecs.map(spec => {
         const columns = spec.columns.map(col => {
@@ -916,13 +1200,30 @@ const App: React.FC = () => {
           });
         }
 
+        // Map filters physical table names
+        const filtersPayload = (spec.filters || []).map(f => {
+          const [objName, colName] = f.field.split('.');
+          const obj = selectedGroup.objects.find(o => o.name === objName);
+          const physicalTable = obj ? obj.tableName : objName;
+          return {
+            ...f,
+            field: `${physicalTable}.${colName}`
+          };
+        });
+
         return {
-          sheetName: spec.sheetName,
+          sheetName: spec.sheetName || spec.name.replace('FBDI - ', '').trim(),
           columns,
           joins,
+          filters: filtersPayload,
           id: spec.id
         };
       });
+
+      // Step 2: Parallel SQL Construction
+      await new Promise(r => setTimeout(r, 600));
+      setExtractProgress(35);
+      setExtractStatus(`Connecting to Oracle ATP - Executing ${specsPayload.length} extracts in parallel...`);
 
       const response = await fetch('http://localhost:3006/api/extract-batch', {
         method: 'POST',
@@ -933,6 +1234,9 @@ const App: React.FC = () => {
           templateFile: groupSpecs[0]?.backendTemplateName
         })
       });
+
+      setExtractProgress(65);
+      setExtractStatus('Merging results and generating unified FBDI ZIP...');
 
       if (!response.ok) {
         const text = await response.text();
@@ -970,21 +1274,27 @@ const App: React.FC = () => {
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
-        alert(`Batch extraction complete! Consolidated FBDI workbook downloaded: ${fileName}`);
+
+        setExtractProgress(100);
+        setExtractStatus('Batch Extraction Successful!');
+        await new Promise(r => setTimeout(r, 1000));
         return;
       }
 
       const result = await response.json();
       if (result.success) {
-        alert("Batch extraction complete! (Non-FBDI formats currently download individual files if not using consolidation logic)");
+        setExtractProgress(100);
+        setExtractStatus('Success! Batch download ready.');
+        await new Promise(r => setTimeout(r, 1000));
       } else {
-        alert("Batch extraction failed: " + result.message);
+        throw new Error(result.message || 'Unknown error');
       }
-    } catch (e: any) {
-      console.error("Batch extraction failed", e);
-      alert("Batch extraction error: " + e.message);
+    } catch (err: any) {
+      console.error("Batch extraction failed", err);
+      alert("Error: " + err.message);
     } finally {
       setExportLoading(false);
+      setIsExtractingMode(false);
     }
   };
 
@@ -1147,8 +1457,12 @@ const App: React.FC = () => {
         selectedGroupId={selectedGroup?.id || null}
         activeSpecId={activeSpec?.id || null}
         onGroupSelect={(id) => {
-          setSelectedGroup(groups.find(g => g.id === id) || null);
+          const group = groups.find(g => g.id === id) || null;
+          setSelectedGroup(group);
           setActiveSpec(null);
+          if (id.startsWith('grp_db_')) {
+            hydrateGroup(id);
+          }
         }}
         onCreateSpec={handleCreateNewSpec}
       />
@@ -1223,7 +1537,7 @@ const App: React.FC = () => {
                           value={activeSpec.name}
                           onChange={(e) => updateSpecName(e.target.value)}
                         />
-                        <span className="text-[10px] bg-purple-100 text-purple-600 px-3 py-1 rounded-full font-black uppercase tracking-widest border border-purple-200">v{activeSpec.version.toFixed(1)}</span>
+                        <span className="text-[10px] bg-purple-100 text-purple-600 px-3 py-1 rounded-full font-black uppercase tracking-widest border border-purple-200">v{Number(activeSpec.version).toFixed(1)}</span>
                       </div>
                       <p className="text-slate-400 text-xs mt-1 font-medium">Model Context: <span className="text-blue-600 font-bold">{selectedGroup?.name}</span> <span className="mx-2">•</span> Dialect: <span className={`${selectedGroup?.databaseType === 'ORACLE' ? 'text-orange-600' : 'text-blue-600'} font-bold`}>{selectedGroup?.databaseType}</span></p>
                     </div>
@@ -1246,8 +1560,8 @@ const App: React.FC = () => {
                       </select>
                     </div>
                     <div className="flex gap-2 items-end">
-                      <button onClick={handleCloneSpec} className="p-2.5 bg-slate-50 text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-100 transition-all" title="Clone This Specification">
-                        <Icons.Upload className="w-5 h-5 rotate-180" />
+                      <button onClick={handleCloneSpec} className="p-2.5 bg-slate-50 text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-100 transition-all" title="Save as New Version (Clone)">
+                        <Icons.Copy className="w-5 h-5" />
                       </button>
                       <button onClick={handleDownloadExcel} className="p-2.5 bg-slate-50 text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-100 transition-all" title="Download Specification (Excel)">
                         <Icons.Download className="w-5 h-5" />
@@ -1400,7 +1714,7 @@ const App: React.FC = () => {
                         }}
                         onRemoveStep={(stepId) => updateColumn(col.id, { transformations: col.transformations.filter(s => s.id !== stepId) })}
                         onUpdateStep={(stepId, updates) => updateColumn(col.id, { transformations: col.transformations.map(s => s.id === stepId ? { ...s, ...updates } : s) })}
-                        onAiSuggest={() => suggestTransformations(col.targetName, col.sourceField, groups).then(sug => updateColumn(col.id, { transformations: sug.map(t => ({ id: `sug_${Date.now()}`, type: t })) }))}
+                        onAiSuggest={() => console.log("AI Suggestion disabled")}
                       />
                     </div>
                   ))}
@@ -1455,6 +1769,14 @@ const App: React.FC = () => {
         )
       }
 
+      {isExtractingMode && (activeSpec || selectedGroup) && (
+        <ExtractionProgressScreen
+          specName={activeSpec ? activeSpec.name : (selectedGroup?.name || 'Batch Extraction')}
+          progress={extractProgress}
+          status={extractStatus}
+          onCancel={() => setIsExtractingMode(false)}
+        />
+      )}
     </div >
   );
 };

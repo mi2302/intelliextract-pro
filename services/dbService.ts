@@ -36,11 +36,12 @@ export async function connectAndIntrospect(config: DatabaseConfig): Promise<Obje
     }
 }
 
-export async function fetchModuleSchema(config: DatabaseConfig | null, moduleName: string, sheetNames?: string[], analysisModuleName?: string): Promise<any[]> {
+export async function fetchModuleSchema(config: DatabaseConfig | null, moduleName: string, sheetNames?: string[], analysisModuleName?: string | string[], unmappedHeaders?: string[] | Record<string, string[]>): Promise<{ objects: any[], relationships: any[] }> {
     try {
         const body: any = { moduleName };
         if (sheetNames) body.sheetNames = sheetNames;
         if (analysisModuleName) body.analysisModuleName = analysisModuleName;
+        if (unmappedHeaders) body.unmappedHeaders = unmappedHeaders;
         if (config) {
             body.user = config.user;
             body.password = config.password;
@@ -55,25 +56,29 @@ export async function fetchModuleSchema(config: DatabaseConfig | null, moduleNam
             body: JSON.stringify(body),
         });
 
-        if (!response.ok) return [];
+        if (!response.ok) return { objects: [], relationships: [] };
 
         const data = await response.json();
-        if (data.success && data.objects) {
-            return data.objects;
+        if (data.success) {
+            return {
+                objects: data.objects || [],
+                relationships: data.relationships || []
+            };
         }
-        return [];
+        return { objects: [], relationships: [] };
     } catch (error) {
         console.error("Fetch Module Error:", error);
-        return [];
+        return { objects: [], relationships: [] };
     }
 }
 // ... existing code ...
 
-export async function fetchFbdiMappings(config: DatabaseConfig | null, moduleName: string, sheetNames?: string[], analysisModuleName?: string): Promise<any[]> {
+export async function fetchFbdiMappings(config: DatabaseConfig | null, moduleName: string, sheetNames?: string[], analysisModuleName?: string | string[], unmappedHeaders?: string[] | Record<string, string[]>): Promise<any[]> {
     try {
         const body: any = { moduleName };
         if (sheetNames) body.sheetNames = sheetNames;
         if (analysisModuleName) body.analysisModuleName = analysisModuleName;
+        if (unmappedHeaders) body.unmappedHeaders = unmappedHeaders;
         if (config) {
             body.user = config.user;
             body.password = config.password;
@@ -114,15 +119,15 @@ export async function fetchGroups(): Promise<string[]> {
     }
 }
 
-export async function fetchSavedModels(): Promise<any[]> {
+export async function fetchSavedModels(): Promise<{ models: any[], latestModelDetail: any }> {
     try {
         const response = await fetch(`${API_BASE_URL}/saved-models`);
-        if (!response.ok) return [];
+        if (!response.ok) return { models: [], latestModelDetail: null };
         const data = await response.json();
-        return data.success ? data.models : [];
+        return data.success ? { models: data.models, latestModelDetail: data.latestModelDetail } : { models: [], latestModelDetail: null };
     } catch (error) {
         console.error("Fetch Saved Models Error:", error);
-        return [];
+        return { models: [], latestModelDetail: null };
     }
 }
 
@@ -135,5 +140,36 @@ export async function fetchSavedModelDetail(modelId: string | number): Promise<{
     } catch (error) {
         console.error("Fetch Saved Model Detail Error:", error);
         return null;
+    }
+}
+
+export async function analyzeFbdiMetadata(metadata: {
+    sheetNames: string[],
+    instructions: string,
+    props: Record<string, any>,
+    fileName: string
+}): Promise<any> {
+    try {
+        const response = await fetch(`${API_BASE_URL}/analyze-fbdi`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(metadata)
+        });
+
+        if (!response.ok) {
+            throw new Error(`Backend Analysis Failed: ${response.statusText}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error("OCI Analysis Failed (Backend)", error);
+        return {
+            moduleName: "Unknown",
+            intent: "Unknown",
+            confidence: "Low",
+            reasoning: "Connection Error: " + (error as Error).message
+        };
     }
 }

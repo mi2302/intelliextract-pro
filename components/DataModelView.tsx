@@ -64,10 +64,11 @@ const DataModelView: React.FC<DataModelViewProps> = ({
   };
 
   const addEntity = () => {
+    const defaultTableName = `NEW_TABLE_${Date.now()}`;
     const newObj: DataObject = {
-      id: `obj_${Date.now()}`,
+      id: defaultTableName,
       name: 'New Entity',
-      tableName: 'NEW_TABLE',
+      tableName: defaultTableName,
       fields: [{ name: 'ID', type: 'NUMBER', description: 'Primary Key' }]
     };
     onUpdateGroup({ ...group, objects: [...(group.objects || []), newObj] });
@@ -338,7 +339,7 @@ const DataModelView: React.FC<DataModelViewProps> = ({
                             {spec.name}
                           </h4>
                           <span className="shrink-0 text-[10px] bg-slate-800 text-blue-400 px-2 py-0.5 rounded-md font-black border border-slate-700">
-                            v{spec.version.toFixed(1)}
+                            v{Number(spec.version).toFixed(1)}
                           </span>
                         </div>
                         <span className="text-[10px] text-slate-500 font-mono mt-0.5">Created {new Date(spec.createdAt).toLocaleDateString()}</span>

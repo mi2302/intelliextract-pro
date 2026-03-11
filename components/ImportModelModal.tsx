@@ -74,7 +74,7 @@ const ImportModelModal: React.FC<ImportModelModalProps> = ({ isOpen, onClose, on
               }));
 
               objects.push({
-                id: `obj_${currentTable}`,
+                id: currentTable,
                 name: currentTable,
                 tableName: currentTable,
                 fields: fields

@@ -36,22 +36,27 @@ export async function generateMockDataForSpec(spec: FileSpecification, count: nu
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const properties: Record<string, any> = {};
+  const reverseMap: Record<string, string> = {};
 
   if (!spec.columns || spec.columns.length === 0) {
     return [];
   }
 
   spec.columns.forEach(col => {
-    const key = col.targetName || 'field_' + col.id;
-    properties[key] = {
+    const rawKey = col.targetName || 'field_' + col.id;
+    // JSON Schema property names must be alphanumeric/underscores
+    const safeKey = rawKey.replace(/[^a-zA-Z0-9_]/g, '_');
+
+    properties[safeKey] = {
       type: Type.STRING,
-      description: `Realistic mock value for column ${key} sourced from ${col.sourceField}`
+      description: `Realistic mock value for column ${rawKey} sourced from ${col.sourceField}`
     };
+    reverseMap[safeKey] = rawKey;
   });
 
   const prompt = `Generate ${count} rows of realistic mock data for the following extraction specification: ${JSON.stringify(spec)}.
   Ensure the data respects the column names, the likely content based on the source field names, and the FILTER conditions if any are provided.
-  Return an array of objects where keys match exactly the targetName of the provided columns.`;
+  Return an array of objects where keys match exactly the sanitized property names provided in the response schema.`;
 
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
@@ -70,7 +75,16 @@ export async function generateMockDataForSpec(spec: FileSpecification, count: nu
   });
 
   try {
-    return JSON.parse(response.text || '[]');
+    const rawData = JSON.parse(response.text || '[]');
+    // Restore the original raw keys for the frontend
+    return rawData.map((row: any) => {
+      const mappedRow: any = {};
+      Object.keys(row).forEach(safeKey => {
+        const originalKey = reverseMap[safeKey] || safeKey;
+        mappedRow[originalKey] = row[safeKey];
+      });
+      return mappedRow;
+    });
   } catch (e) {
     console.error("Failed to parse mock data JSON", e);
     return [];
