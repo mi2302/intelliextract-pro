@@ -40,8 +40,8 @@ const Sidebar: React.FC<SidebarProps> = ({
             <div key={group.id} className="space-y-1">
               <div
                 className={`group flex items-center justify-between px-3 py-2.5 rounded-xl transition-all cursor-pointer ${isGroupSelected && !activeSpecId ? 'bg-blue-600/10 border border-blue-500/30' :
-                    isGroupSelected && activeSpecId ? 'bg-slate-900 border border-slate-800' :
-                      'hover:bg-slate-900'
+                  isGroupSelected && activeSpecId ? 'bg-slate-900 border border-slate-800' :
+                    'hover:bg-slate-900'
                   }`}
                 onClick={() => onGroupSelect(group.id)}
               >
