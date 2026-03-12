@@ -119,7 +119,7 @@ const FBDIImportModal: React.FC<FBDIImportModalProps> = ({ isOpen, onClose, onIm
                         <h2 className="text-xl font-black text-slate-800 tracking-tight">FBDI Import</h2>
                         <p className="text-xs font-medium text-slate-400 mt-1">Upload an Oracle FBDI Template to extract schema</p>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition-all text-slate-400 hover:text-slate-600">
+                    <button onClick={onClose} className="t-Button t-Button--icon t-Button--noLabel t-Button--simple">
                         <Icons.Plus className="w-5 h-5 rotate-45" />
                     </button>
                 </div>
@@ -164,7 +164,7 @@ const FBDIImportModal: React.FC<FBDIImportModalProps> = ({ isOpen, onClose, onIm
                                 <p className="text-xs text-slate-400 mt-1">{(file.size / 1024).toFixed(1)} KB</p>
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setFile(null); }}
-                                    className="text-[10px] text-red-500 font-bold uppercase tracking-widest mt-4 hover:underline"
+                                    className="t-Button t-Button--danger t-Button--simple mt-4"
                                 >
                                     Remove File
                                 </button>
@@ -214,14 +214,14 @@ const FBDIImportModal: React.FC<FBDIImportModalProps> = ({ isOpen, onClose, onIm
                     <div className="flex items-center gap-3 pt-4">
                         <button
                             onClick={onClose}
-                            className="flex-1 py-3 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-50 transition-all"
+                            className="t-Button flex-1"
                         >
                             Cancel
                         </button>
                         <button
                             onClick={handleSubmit}
                             disabled={!file || !moduleName || isLoading}
-                            className="flex-1 py-3 bg-purple-600 text-white rounded-xl text-sm font-bold hover:bg-purple-700 transition-all disabled:opacity-50 shadow-lg shadow-purple-500/20 flex items-center justify-center gap-2"
+                            className="t-Button t-Button--primary flex-1 flex items-center justify-center gap-2 disabled:opacity-50"
                         >
                             {isLoading ? (
                                 <>

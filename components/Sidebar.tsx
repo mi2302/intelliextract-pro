@@ -19,9 +19,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   onCreateSpec
 }) => {
   return (
-    <div className="w-80 bg-slate-950 text-slate-300 h-full flex flex-col border-r border-slate-800 shadow-2xl z-20">
-      <div className="p-6 border-b border-slate-800 flex items-center gap-3 bg-slate-900/50">
-        <div className="bg-blue-600 p-2 rounded-lg shadow-lg shadow-blue-500/20">
+    <div className="t-Region redwood-sidebar w-80 h-full flex flex-col shadow-2xl z-20">
+      <div className="p-6 border-b border-white/10 flex items-center gap-3">
+        <div className="bg-blue-600 p-2 rounded-lg shadow-lg">
           <Icons.Database className="w-6 h-6 text-white" />
         </div>
         <h1 className="text-xl font-bold text-white tracking-tight">IntelliExtract</h1>
@@ -51,7 +51,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <span className={`truncate text-sm font-bold ${isGroupSelected ? 'text-slate-100' : 'text-slate-400 group-hover:text-slate-200'}`}>
                       {group.name}
                     </span>
-                    <span className={`text-[9px] font-black uppercase tracking-widest ${isOracle ? 'text-orange-500/70' : 'text-blue-500/70'}`}>
+                    <span className={`text-[9px] font-black uppercase tracking-widest ${isOracle ? 'text-orange-400' : 'text-blue-200'}`}>
                       {group.databaseType === 'ORACLE' ? 'Oracle ATP' : 'PostgreSQL'}
                     </span>
                   </div>
@@ -69,14 +69,14 @@ const Sidebar: React.FC<SidebarProps> = ({
         })}
       </div>
 
-      <div className="p-4 bg-slate-950/80 border-t border-slate-800">
-        <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-900/30 border border-slate-800/50">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-bold text-white text-xs shadow-inner">SA</div>
+      <div className="p-4 bg-black/20 border-t border-white/5">
+        <div className="flex items-center gap-3 p-3 rounded-xl bg-black/20 border border-white/10">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-red-600 to-orange-500 flex items-center justify-center font-bold text-white text-xs shadow-inner">SA</div>
           <div className="text-[10px] flex-1">
             <div className="text-slate-200 font-bold">System Admin</div>
-            <div className="text-slate-500 font-medium">Enterprise Tier</div>
+            <div className="text-slate-400 font-medium">Enterprise Tier</div>
           </div>
-          <Icons.Settings className="w-3.5 h-3.5 text-slate-600 hover:text-slate-400 cursor-pointer" />
+          <Icons.Settings className="w-3.5 h-3.5 text-slate-400 hover:text-white cursor-pointer" />
         </div>
       </div>
     </div>

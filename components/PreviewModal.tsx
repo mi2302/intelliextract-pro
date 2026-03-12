@@ -95,7 +95,7 @@ const PreviewModal: React.FC<PreviewModalProps> = ({
                                         </div>
                                     ) : (
                                         <div className="overflow-x-auto">
-                                            <table className="w-full text-left border-collapse">
+                                            <table className="t-Report-report w-full text-left border-collapse">
                                                 <thead>
                                                     <tr className="bg-slate-50 border-b border-slate-200">
                                                         {columns.map((col, idx) => (
@@ -136,14 +136,14 @@ const PreviewModal: React.FC<PreviewModalProps> = ({
                                         <div className="flex items-center gap-3">
                                             <button
                                                 onClick={() => navigator.clipboard.writeText(editableQuery)}
-                                                className="text-[10px] font-bold text-slate-400 hover:text-white transition-colors flex items-center gap-1 bg-slate-700 px-3 py-1.5 rounded-lg"
+                                                className="t-Button t-Button--simple flex items-center gap-1"
                                             >
                                                 <Icons.Copy className="w-3 h-3" /> Copy
                                             </button>
                                             {onApplySql && (
                                                 <button
                                                     onClick={() => onApplySql(editableQuery)}
-                                                    className="text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-500 transition-colors flex items-center gap-1 px-4 py-1.5 rounded-lg shadow-lg shadow-blue-500/20"
+                                                    className="t-Button t-Button--primary flex items-center gap-1"
                                                 >
                                                     <Icons.Brain className="w-3 h-3" /> Auto-Map from SQL
                                                 </button>
@@ -167,7 +167,7 @@ const PreviewModal: React.FC<PreviewModalProps> = ({
                 <div className="p-4 bg-white border-t border-slate-200 flex justify-end gap-3">
                     <button
                         onClick={onClose}
-                        className="px-6 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-200 transition-all"
+                        className="t-Button"
                     >
                         Close
                     </button>

@@ -130,7 +130,7 @@ const ImportModelModal: React.FC<ImportModelModalProps> = ({ isOpen, onClose, on
             </div>
             <h2 className="text-xl font-bold text-slate-800">Import Model Architecture</h2>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+          <button onClick={onClose} className="t-Button t-Button--icon t-Button--noLabel t-Button--simple">
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
@@ -144,14 +144,14 @@ const ImportModelModal: React.FC<ImportModelModalProps> = ({ isOpen, onClose, on
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => setTargetDialect('POSTGRES')}
-              className={`py-2.5 px-4 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 ${targetDialect === 'POSTGRES' ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/20' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+              className={`t-Button flex-1 flex items-center justify-center gap-2 ${targetDialect === 'POSTGRES' ? 't-Button--primary' : ''}`}
             >
               <div className={`w-2 h-2 rounded-full ${targetDialect === 'POSTGRES' ? 'bg-white' : 'bg-blue-400'}`}></div>
               PostgreSQL
             </button>
             <button
               onClick={() => setTargetDialect('ORACLE')}
-              className={`py-2.5 px-4 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 ${targetDialect === 'ORACLE' ? 'bg-orange-600 text-white border-orange-600 shadow-lg shadow-orange-500/20' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+              className={`t-Button flex-1 flex items-center justify-center gap-2 ${targetDialect === 'ORACLE' ? 't-Button--primary' : ''}`}
             >
               <div className={`w-2 h-2 rounded-full ${targetDialect === 'ORACLE' ? 'bg-white' : 'bg-orange-400'}`}></div>
               Oracle ATP/DBCS
@@ -224,7 +224,7 @@ const ImportModelModal: React.FC<ImportModelModalProps> = ({ isOpen, onClose, on
           <button
             disabled={isLoading}
             onClick={onClose}
-            className="w-full px-4 py-2 bg-slate-100 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 transition-all disabled:opacity-50"
+            className="t-Button w-full disabled:opacity-50"
           >
             Cancel
           </button>

@@ -1,0 +1,224 @@
+
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta http-equiv="x-ua-compatible" content="IE=edge" />
+    <meta charset="utf-8" />
+    <title>Redwood-Theme Variables</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="../css/Core.css" type="text/css" />
+    <link rel="stylesheet" href="../css/Vita.css" type="text/css" />
+    <style>
+      code {
+        white-space: pre-wrap;
+      }
+
+      table,
+      tr,
+      th,
+      td {
+        border-collapse: collapse;
+        border: 1px solid #ddd;
+      }
+
+      table {
+        background-color: #fff;
+        table-layout: fixed;
+        border-radius: .125rem;
+      }
+
+      th,
+      td {
+        font-size: 1rem;
+        padding: .5rem;
+      }
+
+      th {
+        text-align: start;
+        color: #000;
+        font-weight: 700;
+        background-color: rgba(0, 0, 0, .025);
+      }
+
+      tr:nth-child(even) {
+        background-color: rgba(0, 0, 0, .025);
+      }
+
+      td {
+        word-wrap: break-word;
+        font-family: monospace;
+      }
+
+      hr {
+        margin: 2rem 0;
+        height: 0;
+        background-color: transparent;
+        border: 0;
+        border-top: 1px solid rgba(0, 0, 0, .2);
+      }
+
+      body {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        grid-template-rows: auto 1fr;
+        grid-template-areas: "header header""nav main";
+        overflow: hidden;
+        height: 100vh;
+      }
+
+      header {
+        background-color: var(--ut-palette-primary);
+        color: var(--ut-palette-primary-contrast);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: .75rem;
+        gap: .5rem;
+        grid-area: header;
+      }
+
+      header h1 {
+        margin: 0;
+        font-size: 1.25rem;
+      }
+
+      header select {
+        color: var(--ut-palette-generic-text);
+      }
+
+      nav {
+        inline-size: 17.5rem;
+        overflow-y: auto;
+        background-color: var(--ut-body-nav-background-color);
+        color: var(--ut-body-nav-text-color);
+        padding: .5rem;
+        grid-area: nav;
+      }
+
+      nav ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      nav li {
+        display: block;
+        margin: 0;
+        padding: 0;
+      }
+
+      nav li a {
+        display: block;
+        padding: .25rem .5rem;
+        border-radius: .25rem;
+        color: inherit;
+      }
+
+      nav li a:hover {
+        background-color: rgba(255, 255, 255, .05);
+      }
+
+      nav li a:active,
+      nav li a:focus {
+        color: var(--ut-palette-primary-contrast);
+        background-color: var(--ut-palette-primary);
+      }
+
+      main {
+        grid-area: main;
+        overflow: auto;
+        padding: 1rem;
+        scroll-padding-top: 1rem;
+      }
+
+      main h2 {
+        margin-block-start: 0;
+        font-weight: 700;
+      }
+
+      .doc {
+        border: 1px solid #ddd;
+        background-color: rgba(0, 0, 0, .0125);
+        padding: 1rem;
+        border-radius: .125rem;
+        margin-block-start: 3rem;
+      }
+
+      .doc h3 {
+        margin-block-start: 0;
+      }
+    </style>
+  </head>
+
+  <body>
+    <header>
+      <h1>Redwood-Theme Variables</h1>
+      <select onchange='changeStyle(this)' aria-label="Theme Style">
+        <option selected>Theme Style</option>
+        <option value="Core.html">Core</option><option value="Redwood.html">Redwood</option><option value="Vita-Dark.html">Vita-Dark</option><option value="Vita-Red.html">Vita-Red</option><option value="Vita-Slate.html">Vita-Slate</option><option value="Vita.html">Vita</option>
+      </select>
+    </header>
+    <nav>
+    <ul></ul>
+</nav>
+    <main>
+      <section aria-label="Redwood-Theme Variables">
+        <h2>Redwood-Theme Variables</h2>
+        <p><strong>Total variables detected in Redwood-Theme.css: 0</strong></p>
+        <p>This generated document outlines a list of CSS variables detected in various production files, and their values across various selectors. Each variable is labeled with a prefix, followed by the component name, and the corresponding CSS property for the variable:</p>
+        <i>--{prefix}-{component-name}-{css-property}</i>
+        <br /><br />
+        <p>The following variable prefixes are interpreted as follows:</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Variable Prefix</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>--ut, --u</td>
+              <td>Variables used across components.</td>
+            </tr>
+            <tr>
+              <td>--a</td>
+              <td>Variables imported from App UI.</td>
+            </tr>
+            <tr>
+              <td>--oj</td>
+              <td>Variables used in <a href="https://www.oracle.com/webfolder/technetwork/jet/index.html" target="_blank">Oracle JavaScript Extension Toolkit</a> components (JET).</td>
+            </tr>
+            <tr>
+              <td>--jui</td>
+              <td>Variables used in jQuery components.</td>
+            </tr>
+            <tr>
+              <td>--js</td>
+              <td>Variables used by Javascript.</td>
+            </tr>
+            <tr>
+              <td>--fc, --fc3</td>
+              <td>Variables used in <a href="https://fullcalendar.io/" target="_blank">Full Calendar</a> components (v3 & v5).</td>
+            </tr>
+            <tr>
+              <td>--rw</td>
+              <td>Variables used in Redwood components.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+      
+    </main>
+    <script>
+      function changeStyle(select) {
+        var url = select.value;
+        if (url) {
+          window.location = url;
+        }
+        return false;
+      }
+    </script>
+  </body>
+  </html>
+  

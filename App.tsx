@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { MOCK_METADATA, Icons } from './constants';
 import {
@@ -57,11 +58,64 @@ const App: React.FC = () => {
   const [extractProgress, setExtractProgress] = useState(0);
   const [extractStatus, setExtractStatus] = useState('');
 
+  // Routing Hooks
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Route Synchronization Effect
   useEffect(() => {
-    if (groups.length > 0 && !selectedGroup) {
-      setSelectedGroup(groups[0]);
+    const path = location.pathname;
+
+    // Reset all modal states first
+    setIsFbdiModalOpen(false);
+    setIsImportModalOpen(false);
+    setIsDbModalOpen(false);
+    setIsPreviewOpen(false);
+
+    // Activate view based on route
+    if (path === '/fbdi-import') setIsFbdiModalOpen(true);
+    if (path === '/import-model') setIsImportModalOpen(true);
+    if (path === '/database-config') setIsDbModalOpen(true);
+    if (path === '/data-preview') setIsPreviewOpen(true);
+
+    // We intentionally don't reset isExtractingMode here automatically to allow it to run in background,
+    // but we can activate it via route.
+    if (path === '/extraction-progress') setIsExtractingMode(true);
+    else setIsExtractingMode(false); // Only show extracting overlay when on its route
+
+    // Handle deep links for Models and Extractions
+    // Expected patterns: /models/:modelId and /models/:modelId/extractions/:specId
+    const modelMatch = path.match(/^\/models\/([^\/]+)(?:\/extractions\/([^\/]+))?$/);
+
+    if (modelMatch) {
+      const urlModelId = modelMatch[1];
+      const urlSpecId = modelMatch[2];
+
+      const targetGroup = groups.find(g => g.id === urlModelId);
+      if (targetGroup && targetGroup.id !== selectedGroup?.id) {
+        setSelectedGroup(targetGroup);
+      }
+
+      if (urlSpecId) {
+        const targetSpec = specifications.find(s => s.id === urlSpecId);
+        if (targetSpec && targetSpec.id !== activeSpec?.id) {
+          setActiveSpec(targetSpec);
+        }
+      } else {
+        // If we are at the model level, ensure no spec is actively showing overlaying the model view
+        if (activeSpec && !path.includes('/data-preview') && !path.includes('/extraction-progress')) {
+          setActiveSpec(null);
+        }
+      }
+    } else if (path === '/') {
+      // Only reset when explicitly at home, not in modals
+      if (selectedGroup && !isFbdiModalOpen && !isImportModalOpen && !isDbModalOpen && !isPreviewOpen && !isExtractingMode) {
+        setSelectedGroup(null);
+        setActiveSpec(null);
+      }
     }
-  }, [groups]);
+
+  }, [location.pathname, groups, specifications]);
 
   // Sync with DB on mount - Optimized: Only fetch headers, hydrate on demand
   useEffect(() => {
@@ -90,10 +144,6 @@ const App: React.FC = () => {
               const otherSpecs = prev.filter(s => s.objectGroupId !== `grp_db_${latestModelDetail.group.modelId}`);
               return [...otherSpecs, ...latestModelDetail.specifications];
             });
-            // Automatically select latest model if none selected
-            if (!selectedGroup) {
-              setSelectedGroup(placeholderGroups[0]);
-            }
           }
 
           // BACKGROUND PRE-FETCH: Hydrate all other models in background
@@ -155,28 +205,46 @@ const App: React.FC = () => {
     }
   };
 
+  // Automatically hydrate the selected group if it's missing deep data (e.g. selected via Deep Link)
+  useEffect(() => {
+    if (selectedGroup && selectedGroup.id.startsWith('grp_db_') && (!selectedGroup.objects || selectedGroup.objects.length === 0)) {
+      hydrateGroup(selectedGroup.id);
+    }
+  }, [selectedGroup?.id]);
+
   const handleUpdateGroup = async (updatedGroup: ObjectGroup) => {
     setGroups(prev => prev.map(g => g.id === updatedGroup.id ? updatedGroup : g));
     if (selectedGroup?.id === updatedGroup.id) {
       setSelectedGroup(updatedGroup);
     }
+    // Auto-save logic removed. Saving is now explicit.
+  };
 
-    // Persist to backend if this is a saved model
-    if (updatedGroup.modelId) {
-      console.log(`Persisting architecture update for model: ${updatedGroup.name}`);
-      try {
-        await fetch('http://localhost:3006/api/model/update-architecture', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            modelName: updatedGroup.name,
-            objects: updatedGroup.objects,
-            relationships: updatedGroup.relationships
-          })
-        });
-      } catch (err) {
-        console.error("Failed to persist architecture update:", err);
+  const handleSaveArchitecture = async () => {
+    if (!selectedGroup || !selectedGroup.modelId) return;
+
+    setIsAiLoading(true);
+    console.log(`Explicitly saving architecture for model: ${selectedGroup.name}`);
+    try {
+      const response = await fetch('http://localhost:3006/api/model/update-architecture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          modelName: selectedGroup.name,
+          objects: selectedGroup.objects,
+          relationships: selectedGroup.relationships
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+      alert('Architecture saved successfully!');
+    } catch (err) {
+      console.error("Failed to save architecture:", err);
+      alert('Failed to save architecture. Check console for details.');
+    } finally {
+      setIsAiLoading(false);
     }
   };
 
@@ -349,6 +417,7 @@ const App: React.FC = () => {
       setGroups(prev => [...prev, importedGroup]);
       setSelectedGroup(importedGroup);
       setIsImportModalOpen(false);
+      navigate(`/models/${importedGroup.id}`);
     } catch (e) {
       alert("Failed to parse data model.");
     } finally {
@@ -357,7 +426,7 @@ const App: React.FC = () => {
   };
 
   const handleFbdiImport = () => {
-    setIsFbdiModalOpen(true);
+    navigate('/fbdi-import');
   };
 
   const handleFbdiSubmit = async (file: File, moduleNameOverride: string) => {
@@ -741,6 +810,7 @@ const App: React.FC = () => {
 
         alert(`Imported ${newSpecs.length} Specs for Module '${moduleName}'. Architecture saved to DB.`);
         setIsFbdiModalOpen(false);
+        navigate(`/models/${groupId}`);
       } else {
         alert("No valid sheets/headers found in FBDI file.");
       }
@@ -851,7 +921,7 @@ const App: React.FC = () => {
       if (!confirmed) return;
     }
 
-    setIsPreviewOpen(true);
+    navigate('/data-preview'); // Open preview modal via route
     setIsPreviewLoading(true);
     setPreviewData([]);
     setPreviewSql('');
@@ -995,7 +1065,7 @@ const App: React.FC = () => {
     }
 
     setExportLoading(true);
-    setIsExtractingMode(true);
+    navigate('/extraction-progress'); // Open progress modal via route
     setExtractProgress(0);
     setExtractStatus('Initializing extraction engine...');
 
@@ -1098,6 +1168,7 @@ const App: React.FC = () => {
         setExtractProgress(100);
         setExtractStatus('Success! Package ready.');
         await new Promise(r => setTimeout(r, 1000));
+        navigate('/'); // Close progress modal
         return;
       }
 
@@ -1126,6 +1197,7 @@ const App: React.FC = () => {
         setExtractProgress(100);
         setExtractStatus('Extraction Successful!');
         await new Promise(r => setTimeout(r, 1000));
+        navigate('/'); // Close progress modal
       } else {
         throw new Error(result.message || 'Unknown error');
       }
@@ -1134,7 +1206,7 @@ const App: React.FC = () => {
       alert("Error: " + e.message);
     } finally {
       setExportLoading(false);
-      setIsExtractingMode(false);
+      // setIsExtractingMode(false); // Handled by route change
     }
   };
 
@@ -1162,7 +1234,7 @@ const App: React.FC = () => {
     }
 
     setExportLoading(true);
-    setIsExtractingMode(true);
+    navigate('/extraction-progress'); // Open progress modal via route
     setExtractProgress(0);
     setExtractStatus(`Preparing batch extraction for ${groupSpecs.length} sheets...`);
 
@@ -1278,6 +1350,7 @@ const App: React.FC = () => {
         setExtractProgress(100);
         setExtractStatus('Batch Extraction Successful!');
         await new Promise(r => setTimeout(r, 1000));
+        navigate('/'); // Close progress modal
         return;
       }
 
@@ -1286,6 +1359,7 @@ const App: React.FC = () => {
         setExtractProgress(100);
         setExtractStatus('Success! Batch download ready.');
         await new Promise(r => setTimeout(r, 1000));
+        navigate('/'); // Close progress modal
       } else {
         throw new Error(result.message || 'Unknown error');
       }
@@ -1294,7 +1368,7 @@ const App: React.FC = () => {
       alert("Error: " + err.message);
     } finally {
       setExportLoading(false);
-      setIsExtractingMode(false);
+      // setIsExtractingMode(false); // Handled by route change
     }
   };
 
@@ -1370,7 +1444,7 @@ const App: React.FC = () => {
     if (!activeSpec || !selectedGroup) return;
 
     // This regex looks for patterns like: TABLE_NAME.COLUMN_NAME AS "Alias Name"
-    // OR "TABLE_NAME"."COLUMN_NAME" AS "Alias" 
+    // OR "TABLE_NAME"."COLUMN_NAME" AS "Alias"
     // And tries to map it back to the UI target names
 
     // Very naive SQL parser to scrape AS clauses out
@@ -1435,7 +1509,7 @@ const App: React.FC = () => {
       const newSpec = { ...activeSpec, columns: updatedColumns };
       setActiveSpec(newSpec);
       setSpecifications(prev => prev.map(s => s.id === newSpec.id ? newSpec : s));
-      setIsPreviewOpen(false); // Close preview to show UI
+      navigate('/'); // Close preview to show UI
       alert(`Success: Mapped ${matchCount} columns from pasted SQL query!`);
     } else {
       alert("No corresponding UI fields matched the provided SQL AS aliases. Note: The alias in the SQL must perfectly match the Output Label Header.");
@@ -1450,19 +1524,14 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 text-slate-900">
+    <div className="t-PageBody--redwood flex h-screen overflow-hidden bg-slate-50 text-slate-900">
       {initialSyncLoading && <LoadingScreen message="IntelliExtract Sync Progress..." />}
       <Sidebar
         groups={groups}
         selectedGroupId={selectedGroup?.id || null}
         activeSpecId={activeSpec?.id || null}
         onGroupSelect={(id) => {
-          const group = groups.find(g => g.id === id) || null;
-          setSelectedGroup(group);
-          setActiveSpec(null);
-          if (id.startsWith('grp_db_')) {
-            hydrateGroup(id);
-          }
+          navigate(`/models/${id}`);
         }}
         onCreateSpec={handleCreateNewSpec}
       />
@@ -1473,7 +1542,7 @@ const App: React.FC = () => {
             <input
               type="text"
               placeholder="E.g., 'Generate an extract for active suppliers with their tax rates...'"
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-12 pr-4 text-sm focus:ring-2 focus:ring-blue-500 transition-all outline-none"
+              className="apex-item-text w-full py-3 pl-12 pr-4 text-sm"
               value={nlQuery}
               onChange={(e) => setNlQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAiGeneration()}
@@ -1490,13 +1559,13 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <button onClick={handleFbdiImport} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700 transition-all shadow-lg shadow-green-500/20">
+            <button onClick={handleFbdiImport} className="t-Button t-Button--primary flex items-center gap-2 px-4 py-2">
               <Icons.Upload className="w-4 h-4" /> FBDI Import
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-sm font-medium border border-slate-200 hover:bg-slate-200">
+            <button className="t-Button flex items-center gap-2 px-4 py-2">
               <Icons.Search className="w-4 h-4" /> REST API Search
             </button>
-            <button onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-medium hover:bg-purple-700 transition-all shadow-lg shadow-purple-500/20">
+            <button onClick={() => navigate('/import-model')} className="t-Button t-Button--primary flex items-center gap-2 px-4 py-2">
               <Icons.Upload className="w-4 h-4" /> Import Model
             </button>
           </div>
@@ -1509,7 +1578,8 @@ const App: React.FC = () => {
                 group={selectedGroup}
                 specifications={specifications.filter(s => s.objectGroupId === selectedGroup.id)}
                 onUpdateGroup={handleUpdateGroup}
-                onSelectSpec={setActiveSpec}
+                onSaveArchitecture={handleSaveArchitecture}
+                onSelectSpec={(spec) => navigate(`/models/${selectedGroup.id}/extractions/${spec.id}`)}
                 onCreateSpec={() => handleCreateNewSpec(selectedGroup.id)}
                 onDeleteSpec={handleDeleteSpec}
                 onRunExtraction={(format) => {
@@ -1524,8 +1594,8 @@ const App: React.FC = () => {
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap gap-4 items-center justify-between">
                   <div className="flex items-center gap-6">
                     <button
-                      onClick={() => setActiveSpec(null)}
-                      className="p-2 text-slate-400 hover:text-blue-600 bg-slate-50 rounded-xl border border-slate-100 transition-all hover:bg-blue-50"
+                      onClick={() => navigate(`/models/${selectedGroup?.id}`)}
+                      className="t-Button t-Button--icon t-Button--noLabel"
                       title="Back to Model Architecture"
                     >
                       <Icons.Play className="w-4 h-4 rotate-180" />
@@ -1560,22 +1630,22 @@ const App: React.FC = () => {
                       </select>
                     </div>
                     <div className="flex gap-2 items-end">
-                      <button onClick={handleCloneSpec} className="p-2.5 bg-slate-50 text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-100 transition-all" title="Save as New Version (Clone)">
+                      <button onClick={handleCloneSpec} className="t-Button t-Button--icon t-Button--noLabel" title="Save as New Version (Clone)">
                         <Icons.Copy className="w-5 h-5" />
                       </button>
-                      <button onClick={handleDownloadExcel} className="p-2.5 bg-slate-50 text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-100 transition-all" title="Download Specification (Excel)">
+                      <button onClick={handleDownloadExcel} className="t-Button t-Button--icon t-Button--noLabel" title="Download Specification (Excel)">
                         <Icons.Download className="w-5 h-5" />
                       </button>
-                      <button onClick={handleOpenPreview} className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-500 transition-all flex items-center gap-2">
+                      <button onClick={handleOpenPreview} className="t-Button t-Button--primary flex items-center gap-2">
                         <Icons.Brain className="w-4 h-4" /> Data Preview & SQL Query
                       </button>
-                      <button onClick={saveSpecification} className="px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold shadow-sm hover:bg-slate-50 transition-all flex items-center gap-2">
+                      <button onClick={saveSpecification} className="t-Button flex items-center gap-2">
                         <Icons.File className="w-4 h-4" /> Save Specification
                       </button>
                       <button
                         onClick={() => handleRunExtraction()}
                         disabled={exportLoading}
-                        className="px-8 py-2.5 bg-green-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-green-500/30 hover:bg-green-700 transition-all disabled:opacity-50"
+                        className="t-Button t-Button--primary flex items-center gap-2 disabled:opacity-50"
                       >
                         {exportLoading ? 'Processing...' : 'Run Extraction'}
                       </button>
@@ -1583,7 +1653,7 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Filters Section */}
+                {/* Filters Section  */}
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 overflow-hidden">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
@@ -1736,11 +1806,13 @@ const App: React.FC = () => {
               </div>
             )}
 
+
             {!activeSpec && !selectedGroup && (
               <div className="py-40 flex flex-col items-center justify-center text-slate-300">
                 <Icons.Database className="w-20 h-20 mb-6 opacity-10" />
                 <p className="text-xl font-bold tracking-tight">Select a Data Model or Import Architecture</p>
               </div>
+
             )}
           </div>
         </div>
@@ -1748,18 +1820,22 @@ const App: React.FC = () => {
 
       <DatabaseConnectionModal
         isOpen={isDbModalOpen}
-        onClose={() => setIsDbModalOpen(false)}
+        onClose={() => navigate('/')}
         onConnect={handleDbConnect}
         isLoading={isAiLoading}
       />
-      <ImportModelModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} onImport={handleModelImportFromFile} isLoading={isAiLoading} />
-      <FBDIImportModal isOpen={isFbdiModalOpen} onClose={() => setIsFbdiModalOpen(false)} onImport={handleFbdiSubmit} isLoading={isAiLoading} />
+      <ImportModelModal
+        isOpen={isImportModalOpen}
+        onClose={() => navigate('/')}
+        onImport={handleModelImportFromFile}
+        isLoading={isAiLoading} />
+      <FBDIImportModal isOpen={isFbdiModalOpen} onClose={() => navigate('/')} onImport={handleFbdiSubmit} isLoading={isAiLoading} />
 
       {
         activeSpec && (
           <PreviewModal
             isOpen={isPreviewOpen}
-            onClose={() => setIsPreviewOpen(false)}
+            onClose={() => navigate('/')}
             query={previewSql}
             data={previewData}
             columns={activeSpec.columns}
@@ -1769,13 +1845,15 @@ const App: React.FC = () => {
         )
       }
 
+
       {isExtractingMode && (activeSpec || selectedGroup) && (
         <ExtractionProgressScreen
+          onCancel={() => navigate('/')}
           specName={activeSpec ? activeSpec.name : (selectedGroup?.name || 'Batch Extraction')}
           progress={extractProgress}
           status={extractStatus}
-          onCancel={() => setIsExtractingMode(false)}
         />
+
       )}
     </div >
   );

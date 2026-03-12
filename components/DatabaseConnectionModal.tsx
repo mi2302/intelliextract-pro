@@ -39,14 +39,14 @@ const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = ({ isOpe
               <button
                 onClick={() => setConfig({ ...config, type: 'POSTGRES', port: 5432 })}
                 disabled={isLoading}
-                className={`py-2 px-4 rounded-lg text-sm font-medium border transition-all ${config.type === 'POSTGRES' ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+                className={`t-Button flex-1 ${config.type === 'POSTGRES' ? 't-Button--primary' : ''}`}
               >
                 PostgreSQL
               </button>
               <button
                 onClick={() => setConfig({ ...config, type: 'ORACLE', port: 1521 })}
                 disabled={isLoading}
-                className={`py-2 px-4 rounded-lg text-sm font-medium border transition-all ${config.type === 'ORACLE' ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+                className={`t-Button flex-1 ${config.type === 'ORACLE' ? 't-Button--primary' : ''}`}
               >
                 Oracle DB
               </button>
@@ -115,14 +115,14 @@ const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = ({ isOpe
           <button
             onClick={onClose}
             disabled={isLoading}
-            className="flex-1 px-4 py-2 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all disabled:opacity-50"
+            className="t-Button disabled:opacity-50 flex-1"
           >
             Cancel
           </button>
           <button
             onClick={() => onConnect(config)}
             disabled={isLoading}
-            className="flex-1 px-4 py-2 bg-blue-600 rounded-xl text-sm font-bold text-white hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 disabled:opacity-70"
+            className="t-Button t-Button--primary flex-1 flex items-center justify-center gap-2 disabled:opacity-70"
           >
             {isLoading ? (
               <>

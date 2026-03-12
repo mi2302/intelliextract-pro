@@ -1,0 +1,89 @@
+@import url('https://fonts.googleapis.com/css?family=Open+Sans:400,600,700');
+
+/* Redwood Global Font & Base Styles */
+body.t-PageBody--redwood {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
+    background-color: var(--u-color-1, #f8fafc);
+    margin: 0;
+    padding: 0;
+    color: var(--a-text-color, #1a202c);
+}
+
+/* Redwood Specific Brand Variables */
+:root {
+    --redwood-brand: #0f62fe;
+    /* IBM Carbon Blue / Enterprise Blue */
+    --redwood-brand-hover: #0353e9;
+    --redwood-sidebar-bg: #2B2624;
+    /* Redwood dark warm grey */
+    --redwood-sidebar-active: #403835;
+    --redwood-sidebar-border: #4A423E;
+}
+
+/* Tailwind utility bridging / Redwood overrides */
+.t-PageBody--redwood .bg-slate-950,
+.t-PageBody--redwood .bg-slate-900 {
+    background-color: var(--redwood-sidebar-bg) !important;
+}
+
+/* Force tailwind blue to Redwood brand */
+.t-PageBody--redwood .bg-blue-600 {
+    background-color: var(--redwood-brand) !important;
+}
+
+.t-PageBody--redwood .text-blue-600 {
+    color: var(--redwood-brand) !important;
+}
+
+.t-PageBody--redwood .border-blue-600 {
+    border-color: var(--redwood-brand) !important;
+}
+
+.t-PageBody--redwood .focus\:ring-blue-500:focus {
+    --tw-ring-color: var(--redwood-brand) !important;
+}
+
+/* Force standard Redwood Buttons to use the brand color if they are primary */
+.t-PageBody--redwood .t-Button--primary,
+.t-PageBody--redwood .t-Button--hot {
+    background-color: var(--redwood-brand) !important;
+    border-color: var(--redwood-brand) !important;
+    color: #fff !important;
+}
+
+.t-PageBody--redwood .t-Button--primary:hover,
+.t-PageBody--redwood .t-Button--hot:hover {
+    background-color: var(--redwood-brand-hover) !important;
+    border-color: var(--redwood-brand-hover) !important;
+}
+
+.t-Region.redwood-sidebar {
+    background-color: var(--redwood-sidebar-bg) !important;
+    border-right: 1px solid var(--redwood-sidebar-border);
+}
+
+.t-Region.redwood-sidebar .t-Region-body {
+    padding: 0;
+}
+
+.t-Button {
+    transition: all 0.2s ease-in-out;
+}
+
+/* Override existing Tailwind custom scrollbar if needed */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: var(--a-scrollbar-track-color, #f1f1f1);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--a-scrollbar-thumb-color, #cbd5e1);
+    border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--a-scrollbar-thumb-color-hover, #94a3b8);
+}
