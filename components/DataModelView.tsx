@@ -30,6 +30,10 @@ const DataModelView: React.FC<DataModelViewProps> = ({
   const [sourceField, setSourceField] = useState('');
   const [targetField, setTargetField] = useState('');
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [isTableModalOpen, setIsTableModalOpen] = useState(false);
+  const [availableTables, setAvailableTables] = useState<string[]>([]);
+  const [loadingTables, setLoadingTables] = useState(false);
+  const [tableSearch, setTableSearch] = useState('');
 
   const initialSourceId = group.objects?.[0]?.id || '';
   const initialTargetId = group.objects?.[1]?.id || group.objects?.[0]?.id || '';
@@ -76,6 +80,48 @@ const DataModelView: React.FC<DataModelViewProps> = ({
     onUpdateGroup({ ...group, objects: [...(group.objects || []), newObj] });
   };
 
+  const fetchTables = async () => {
+    setLoadingTables(true);
+    try {
+      const res = await fetch('http://localhost:3006/api/db/tables');
+      const data = await res.json();
+      if (data.success) {
+        setAvailableTables(data.tables);
+      }
+    } catch (err) {
+      console.error('Failed to fetch tables', err);
+    } finally {
+      setLoadingTables(false);
+    }
+  };
+
+  const addExistingTable = async (tableName: string) => {
+    try {
+      const res = await fetch(`http://localhost:3006/api/db/columns/${tableName}`);
+      const data = await res.json();
+      if (data.success) {
+        const newObj: DataObject = {
+          id: tableName,
+          name: tableName.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' '),
+          tableName: tableName.toUpperCase(),
+          fields: data.columns.map((c: any) => ({
+            name: c.name,
+            type: c.type,
+            description: `${c.oracleType}${c.nullable ? '' : ' (NOT NULL)'}`
+          }))
+        };
+        onUpdateGroup({ ...group, objects: [...(group.objects || []), newObj] });
+        setIsTableModalOpen(false);
+        setTableSearch('');
+      } else {
+        alert(data.message);
+      }
+    } catch (err) {
+      console.error('Failed to import table', err);
+      alert('Failed to import table schema.');
+    }
+  };
+
   const updateFieldType = (objId: string, fieldName: string, newType: DataField['type']) => {
     onUpdateGroup({
       ...group,
@@ -105,34 +151,104 @@ const DataModelView: React.FC<DataModelViewProps> = ({
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Source Architecture & Relationships Section */}
-      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8">
+      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-8">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h3 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-              <Icons.Database className="w-6 h-6 text-blue-600" />
+            <h3 className="text-xl font-bold text-slate-800 flex items-center gap-3">
+              <Icons.Database className="w-5 h-5 text-[#1e709a]" />
               Source Architecture
             </h3>
-            <p className="text-slate-400 text-sm mt-1">Design entities, data types, and logical joins for this master data group.</p>
+            <p className="text-slate-500 text-xs mt-1">Design entities, data types, and logical joins for this master data group.</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-3 relative">
             {onSaveArchitecture && (
               <button onClick={onSaveArchitecture} className="t-Button flex items-center gap-2 border border-slate-300 bg-white text-slate-700 hover:bg-slate-50">
                 <Icons.File className="w-4 h-4" /> Save Entities
               </button>
             )}
-            <button onClick={addEntity} className="t-Button flex items-center gap-2 border border-slate-300 bg-white text-slate-700 hover:bg-slate-50">
-              <Icons.Plus className="w-4 h-4" /> Add Entity
-            </button>
+            
+            <div className="relative group/add">
+               <button className="t-Button flex items-center gap-2 border border-slate-300 bg-white text-slate-700 hover:bg-slate-50">
+                <Icons.Plus className="w-4 h-4" /> Add Entity
+              </button>
+              
+              <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-slate-200 rounded-lg shadow-xl opacity-0 invisible group-hover/add:opacity-100 group-hover/add:visible transition-all z-[60] py-2">
+                <button 
+                  onClick={addEntity}
+                  className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                >
+                  <Icons.File className="w-4 h-4 text-slate-400" /> Manual Setup
+                </button>
+                <button 
+                  onClick={() => { setIsTableModalOpen(true); fetchTables(); }}
+                  className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                >
+                  <Icons.Database className="w-4 h-4" /> Existing Table
+                </button>
+              </div>
+            </div>
           </div>
         </div>
+
+        {/* Table Selection Modal */}
+        {isTableModalOpen && (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4 overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[80vh] animate-in zoom-in-95 duration-200">
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h4 className="text-xl font-extrabold text-slate-800">Select Existing Table</h4>
+                  <p className="text-slate-500 text-xs">Import structure directly from Oracle schema.</p>
+                </div>
+                <button onClick={() => setIsTableModalOpen(false)} className="text-slate-400 hover:text-red-500 p-2"><Icons.Plus className="w-6 h-6 rotate-45" /></button>
+              </div>
+              
+              <div className="p-6 bg-slate-50 border-b border-slate-100">
+                <input 
+                  autoFocus
+                  placeholder="Filter tables... (e.g. PER_PERSONS)"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#1e709a]/20"
+                  value={tableSearch}
+                  onChange={(e) => setTableSearch(e.target.value)}
+                />
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                {loadingTables ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                    <div className="w-8 h-8 border-4 border-slate-200 border-t-[#1e709a] rounded-full animate-spin mb-4" />
+                    <span className="text-xs font-bold uppercase tracking-widest">Querying Schema...</span>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-2">
+                    {availableTables.filter(t => t.toLowerCase().includes(tableSearch.toLowerCase())).length > 0 ? (
+                      availableTables.filter(t => t.toLowerCase().includes(tableSearch.toLowerCase())).map(t => (
+                        <button 
+                          key={t}
+                          onClick={() => addExistingTable(t)}
+                          className="w-full text-left px-4 py-3 rounded-xl hover:bg-[#e5f1f8] hover:scale-[1.01] transition-all flex items-center justify-between group/tbl"
+                        >
+                          <span className="text-sm font-mono font-bold text-slate-700">{t}</span>
+                          <Icons.Plus className="w-4 h-4 text-[#1e709a] opacity-0 group-hover/tbl:opacity-100" />
+                        </button>
+                      ))
+                    ) : (
+                      <div className="text-center py-12 text-slate-400 text-xs">No tables found matching "{tableSearch}"</div>
+                    )
+                    }
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
           {(group.objects || []).map((obj) => {
             const searchTerm = (fieldSearches[obj.id] || '').toLowerCase();
             const filteredFields = (obj.fields || []).filter(f => f.name.toLowerCase().includes(searchTerm) || f.type.toLowerCase().includes(searchTerm));
             return (
-              <div key={obj.id} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50 transition-all hover:border-blue-300 group flex flex-col h-[400px]">
-                <div className="bg-slate-100 p-4 border-b border-slate-200 flex justify-between items-center group-hover:bg-blue-50 transition-colors shrink-0">
+              <div key={obj.id} className="border border-slate-200 rounded-lg overflow-hidden bg-slate-50 transition-all hover:border-[#1e709a]/30 group flex flex-col h-[400px]">
+                <div className="bg-slate-50 p-4 border-b border-slate-200 flex justify-between items-center group-hover:bg-[#e5f1f8]/30 transition-colors shrink-0">
                   <div className="flex-1 overflow-hidden">
                     <input className="font-bold text-slate-700 bg-transparent border-none outline-none focus:ring-0 w-full truncate" value={obj.name} onChange={(e) => onUpdateGroup({ ...group, objects: group.objects.map(o => o.id === obj.id ? { ...o, name: e.target.value } : o) })} />
                     <div className="text-[10px] text-slate-400 font-mono uppercase tracking-widest">{obj.tableName}</div>
@@ -147,7 +263,7 @@ const DataModelView: React.FC<DataModelViewProps> = ({
                     <input
                       type="text"
                       placeholder="Search attributes/types..."
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-blue-400"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-[#1e709a]/30"
                       value={fieldSearches[obj.id] || ''}
                       onChange={(e) => setFieldSearches(prev => ({ ...prev, [obj.id]: e.target.value }))}
                     />
@@ -160,11 +276,11 @@ const DataModelView: React.FC<DataModelViewProps> = ({
                 <div className="flex-1 overflow-y-auto custom-scrollbar bg-white">
                   {filteredFields.length > 0 ? (
                     filteredFields.map((field) => (
-                      <div key={field.name} className="flex justify-between items-center text-xs p-3 hover:bg-slate-50 border-b border-slate-50 last:border-0 group/field">
+                      <div key={`${obj.id}-${field.name}`} className="flex justify-between items-center text-xs p-3 hover:bg-slate-50 border-b border-slate-50 last:border-0 group/field">
                         <span className="text-slate-700 font-mono font-bold truncate max-w-[50%]" title={field.name}>{field.name}</span>
                         <div className="flex items-center gap-2">
                           <select
-                            className="bg-blue-50 text-blue-600 font-bold text-[9px] uppercase border-none rounded-md px-1 py-0.5 outline-none cursor-pointer"
+                            className="bg-[#e5f1f8] text-[#1e709a] font-bold text-[9px] uppercase border-none rounded-md px-1 py-0.5 outline-none cursor-pointer"
                             value={field.type}
                             onChange={(e) => updateFieldType(obj.id, field.name, e.target.value as any)}
                           >
@@ -187,7 +303,7 @@ const DataModelView: React.FC<DataModelViewProps> = ({
                 <div className="p-3 bg-slate-50 border-t border-slate-200 shrink-0">
                   <input
                     placeholder="+ Add attribute..."
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 font-medium"
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-[#1e709a]/30 font-medium"
                     onKeyDown={(e) => { if (e.key === 'Enter') { addField(obj.id, (e.target as HTMLInputElement).value); (e.target as HTMLInputElement).value = ''; } }}
                   />
                 </div>
@@ -198,8 +314,8 @@ const DataModelView: React.FC<DataModelViewProps> = ({
 
         <div className="pt-10 border-t border-slate-100">
           <div className="flex items-center justify-between mb-8">
-            <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-widest flex items-center gap-2">
-              <Icons.Settings className="w-5 h-5 text-blue-600" />
+            <h4 className="text-xs font-extrabold text-[#212121] uppercase tracking-widest flex items-center gap-2">
+              <Icons.Settings className="w-5 h-5 text-[#1e709a]" />
               Relationship Architect
             </h4>
             <div className="flex gap-3">
@@ -208,14 +324,15 @@ const DataModelView: React.FC<DataModelViewProps> = ({
                   <Icons.File className="w-4 h-4" /> Save Joins
                 </button>
               )}
-              <button onClick={() => setIsAddingRel(true)} className="t-Button t-Button--primary flex items-center gap-2 border border-slate-300 bg-white text-slate-700 hover:bg-slate-50">
+              <button onClick={() => setIsAddingRel(true)} className="t-Button t-Button--simple flex items-center gap-2 border border-slate-300 bg-white text-slate-700 hover:bg-slate-50">
                 <Icons.Plus className="w-4 h-4" /> Establish Connection
               </button>
+
             </div>
           </div>
 
           {(isAddingRel || editingRelIdx !== null) && (
-            <div className="mb-8 p-6 bg-blue-50 rounded-2xl border border-blue-200 animate-in slide-in-from-top-4">
+            <div className="mb-8 p-6 bg-[#e5f1f8]/30 rounded-lg border border-[#1e709a]/20 animate-in slide-in-from-top-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase mb-2 block">Source</label>
@@ -241,17 +358,18 @@ const DataModelView: React.FC<DataModelViewProps> = ({
                     <option value="">Select Object...</option>
                     {group.objects?.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
                   </select>
-                  <select className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm" value={targetField} onChange={(e) => setTargetField(e.target.value)}>
+                  <select className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm" value={targetField} onChange={(e) => setTargetField(e.target.value)}>
                     <option value="">Select Field...</option>
                     {group.objects?.find(o => o.id === activeRel.targetObjectId)?.fields?.map(f => <option key={f.name} value={f.name}>{f.name}</option>)}
                   </select>
                 </div>
               </div>
-              <div className="flex justify-between items-center bg-white/50 p-4 rounded-xl border border-blue-100">
-                <div className="text-xs text-slate-500 font-mono">Generated: <span className="text-blue-600 font-bold">{updateRelCondition(activeRel.sourceObjectId, sourceField, activeRel.targetObjectId, targetField) || '... awaiting fields'}</span></div>
+              <div className="flex justify-between items-center bg-white/50 p-4 rounded-lg border border-[#1e709a]/10">
+                <div className="text-xs text-slate-500 font-mono">Generated: <span className="text-[#1e709a] font-bold">{updateRelCondition(activeRel.sourceObjectId, sourceField, activeRel.targetObjectId, targetField) || '... awaiting fields'}</span></div>
                 <div className="flex gap-3">
                   <button onClick={() => { setIsAddingRel(false); setEditingRelIdx(null); }} className="px-4 py-2 text-sm font-bold text-slate-500">Cancel</button>
-                  <button onClick={handleSaveRel} disabled={!sourceField || !targetField} className="t-Button t-Button--primary disabled:opacity-50">Save Join</button>
+                  <button onClick={handleSaveRel} disabled={!sourceField || !targetField} className="t-Button t-Button--simple disabled:opacity-50">Save Join</button>
+
                 </div>
               </div>
             </div>
@@ -262,9 +380,9 @@ const DataModelView: React.FC<DataModelViewProps> = ({
               const src = group.objects?.find(o => o.id === rel.sourceObjectId);
               const trg = group.objects?.find(o => o.id === rel.targetObjectId);
               return (
-                <div key={idx} className="group relative flex flex-col gap-2 bg-slate-50 p-5 rounded-2xl border border-slate-200 hover:border-blue-300 transition-all hover:bg-white hover:shadow-sm">
+                <div key={idx} className="group relative flex flex-col gap-2 bg-slate-50 p-5 rounded-lg border border-slate-200 hover:border-[#1e709a]/30 transition-all hover:bg-white hover:shadow-sm">
                   <div className="flex items-center justify-between">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded shadow-sm border ${rel.joinType === 'INNER' ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-blue-100 text-blue-700 border-blue-200'}`}>{rel.joinType}</span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded shadow-sm border ${rel.joinType === 'INNER' ? 'bg-[#e5f1f8] text-[#1e709a] border-[#1e709a]/20' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>{rel.joinType}</span>
                     <button onClick={() => deleteRel(idx)} className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-300 hover:text-red-500 transition-all"><Icons.Plus className="w-4 h-4 rotate-45" /></button>
                   </div>
                   <div className="flex items-center gap-3 text-sm font-bold text-slate-700">
@@ -278,44 +396,45 @@ const DataModelView: React.FC<DataModelViewProps> = ({
         </div>
       </div>
 
-      {/* Active Extractions Dashboard - List View moved to bottom */}
-      <div className="bg-slate-900 rounded-3xl p-8 border border-slate-800 shadow-2xl overflow-hidden relative pb-12">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/10 blur-[100px] rounded-full -mr-32 -mt-32"></div>
+      {/* Active Extractions Dashboard - Updated to Light Fusion Theme */}
+      <div className="bg-white rounded-lg p-8 border border-slate-200 shadow-sm relative pb-12">
         <div className="relative z-10">
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h3 className="text-xl font-bold text-white flex items-center gap-3">
-                <Icons.File className="w-5 h-5 text-blue-400" />
+              <h3 className="text-xl font-bold text-slate-800 flex items-center gap-3">
+                <Icons.File className="w-5 h-5 text-[#1e709a]" />
                 Extractions for {group.name}
               </h3>
-              <p className="text-slate-400 text-xs mt-1">Manage multiple output variants, versions, and configurations for this data model.</p>
+              <p className="text-slate-500 text-xs mt-1">Manage multiple output variants, versions, and configurations for this data model.</p>
             </div>
             <div className="flex gap-3">
               <div className="relative">
                 <button
                   onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                  className="t-Button t-Button--primary flex items-center gap-2"
+                  className="t-Button t-Button--simple flex items-center gap-2"
                 >
                   <Icons.Play className="w-4 h-4" /> Run Extraction
                   <Icons.Plus className={`w-3 h-3 transition-transform ${isExportMenuOpen ? 'rotate-45' : ''}`} />
                 </button>
 
+
                 {isExportMenuOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-xl border border-slate-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="px-3 py-1.5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 mb-1">
                       Select Export Format
                     </div>
-                    {[ExportFormat.CSV, ExportFormat.FBDI, ExportFormat.REST, ExportFormat.SOAP].map((format) => (
+                    {[ExportFormat.CSV, ExportFormat.FBDI_XLSM, ExportFormat.FBDI_ZIP, ExportFormat.REST, ExportFormat.SOAP].map((format) => (
                       <button
                         key={format}
                         onClick={() => {
                           onRunExtraction(format);
                           setIsExportMenuOpen(false);
                         }}
-                        className="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors uppercase flex items-center justify-between group"
+                        className="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-[#e5f1f8] hover:text-[#1e709a] transition-colors uppercase flex items-center justify-between group"
                       >
-                        {format}
-                        <Icons.Download className="w-3.5 h-3.5 text-slate-300 group-hover:text-blue-400 transition-colors" />
+                        {format === ExportFormat.FBDI_XLSM ? 'FBDI - XLSM' : 
+                         format === ExportFormat.FBDI_ZIP ? 'FBDI - ZIP' : format}
+                        <Icons.Download className="w-3.5 h-3.5 text-slate-300 group-hover:text-[#1e709a] transition-colors" />
                       </button>
                     ))}
                   </div>
@@ -323,10 +442,11 @@ const DataModelView: React.FC<DataModelViewProps> = ({
               </div>
               <button
                 onClick={onCreateSpec}
-                className="t-Button t-Button--primary flex items-center gap-2"
+                className="t-Button t-Button--simple flex items-center gap-2"
               >
                 <Icons.Plus className="w-4 h-4" /> Create New Extraction
               </button>
+
             </div>
           </div>
 
@@ -337,40 +457,40 @@ const DataModelView: React.FC<DataModelViewProps> = ({
                 <button onClick={onCreateSpec} className="mt-2 text-blue-400 text-xs font-bold hover:underline">Start mapping now</button>
               </div>
             ) : (
-              <div className="bg-slate-950/40 rounded-2xl border border-slate-800/60 overflow-hidden divide-y divide-slate-800/50">
+              <div className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden divide-y divide-slate-100">
                 {specifications.map((spec) => (
                   <div
                     key={spec.id}
-                    className="group flex items-center gap-6 px-6 py-4 hover:bg-slate-800/60 transition-all cursor-pointer"
+                    className="group flex items-center gap-6 px-6 py-4 hover:bg-white transition-all cursor-pointer"
                     onClick={() => onSelectSpec(spec)}
                   >
                     {/* Left: Icon & Title */}
                     <div className="flex items-center gap-4 flex-1 min-w-0">
-                      <div className="bg-slate-800 p-2.5 rounded-xl border border-slate-700/50 group-hover:border-blue-500/50 group-hover:bg-blue-600/10 transition-all">
-                        <Icons.File className="w-5 h-5 text-slate-400 group-hover:text-blue-400" />
+                      <div className="bg-white p-2.5 rounded-lg border border-slate-200 group-hover:border-[#1e709a]/30 group-hover:bg-[#e5f1f8]/20 transition-all">
+                        <Icons.File className="w-5 h-5 text-slate-400 group-hover:text-[#1e709a]" />
                       </div>
                       <div className="flex flex-col min-w-0">
                         <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-bold text-slate-100 truncate group-hover:text-white transition-colors">
+                          <h4 className="text-sm font-bold text-slate-700 truncate group-hover:text-[#1e709a] transition-colors">
                             {spec.name}
                           </h4>
-                          <span className="shrink-0 text-[10px] bg-slate-800 text-blue-400 px-2 py-0.5 rounded-md font-black border border-slate-700">
+                          <span className="shrink-0 text-[10px] bg-[#e5f1f8] text-[#1e709a] px-2 py-0.5 rounded-md font-black border border-[#1e709a]/10">
                             v{Number(spec.version).toFixed(1)}
                           </span>
                         </div>
-                        <span className="text-[10px] text-slate-500 font-mono mt-0.5">Created {new Date(spec.createdAt).toLocaleDateString()}</span>
+                        <span className="text-[10px] text-slate-400 font-mono mt-0.5">Created {new Date(spec.createdAt).toLocaleDateString()}</span>
                       </div>
                     </div>
 
                     {/* Middle: Metadata */}
-                    <div className="hidden sm:flex items-center gap-8 px-4 border-l border-slate-800/50">
+                    <div className="hidden sm:flex items-center gap-8 px-4 border-l border-slate-200">
                       <div className="flex flex-col">
-                        <span className="text-[9px] text-slate-500 uppercase font-black tracking-widest mb-0.5">Format</span>
-                        <span className="text-xs font-bold text-slate-300 uppercase">{spec.format}</span>
+                        <span className="text-[9px] text-slate-400 uppercase font-black tracking-widest mb-0.5">Format</span>
+                        <span className="text-xs font-bold text-slate-600 uppercase">{spec.format}</span>
                       </div>
                       <div className="flex flex-col">
-                        <span className="text-[9px] text-slate-500 uppercase font-black tracking-widest mb-0.5">Fields</span>
-                        <span className="text-xs font-bold text-slate-300">{spec.columns.length} Total</span>
+                        <span className="text-[9px] text-slate-400 uppercase font-black tracking-widest mb-0.5">Fields</span>
+                        <span className="text-xs font-bold text-slate-600">{spec.columns.length} Total</span>
                       </div>
                     </div>
 

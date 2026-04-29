@@ -238,7 +238,7 @@ export async function analyzeFbdiMetadata(metadata: {
 }): Promise<FBDIAnalysisResult> {
   // Call Backend API (Proxies to OCI GenAI)
   try {
-    const response = await fetch('http://localhost:3006/api/analyze-fbdi', {
+    const response = await fetch('http://localhost:3006/api/fbdi/analyze-fbdi', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

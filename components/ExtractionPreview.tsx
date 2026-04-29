@@ -17,14 +17,14 @@ const ExtractionPreview: React.FC<ExtractionPreviewProps> = ({ isOpen, onClose, 
 
   const formattedSample = () => {
     if (data.length === 0) return 'No sample data generated.';
-    
+
     if (format === ExportFormat.CSV || format === ExportFormat.PIPE) {
       const sep = format === ExportFormat.CSV ? ',' : '|';
       const headers = Object.keys(data[0]).join(sep);
       const rows = data.map(row => Object.values(row).join(sep)).join('\n');
       return `${headers}\n${rows}`;
     }
-    
+
     return JSON.stringify(data, null, 2);
   };
 
@@ -74,34 +74,34 @@ const ExtractionPreview: React.FC<ExtractionPreviewProps> = ({ isOpen, onClose, 
                   <button onClick={() => navigator.clipboard.writeText(formattedSample())} className="text-[10px] font-bold text-green-600 hover:text-green-700">Copy Output</button>
                 </div>
                 <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                   {format === ExportFormat.XLS || format === ExportFormat.CSV || format === ExportFormat.PIPE ? (
-                     <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs">
-                          <thead className="bg-slate-50 border-b border-slate-200">
-                            <tr>
-                              {data.length > 0 && Object.keys(data[0]).map(key => (
-                                <th key={key} className="px-4 py-3 font-bold text-slate-600 uppercase tracking-wider">{key}</th>
+                  {format === ExportFormat.XLS || format === ExportFormat.XLSM || format === ExportFormat.CSV || format === ExportFormat.PIPE ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50 border-b border-slate-200">
+                          <tr>
+                            {data.length > 0 && Object.keys(data[0]).map(key => (
+                              <th key={key} className="px-4 py-3 font-bold text-slate-600 uppercase tracking-wider">{key}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {data.map((row, i) => (
+                            <tr key={i} className="hover:bg-slate-50 transition-colors">
+                              {Object.values(row).map((val: any, j) => (
+                                <td key={j} className="px-4 py-3 text-slate-600 font-medium">{String(val)}</td>
                               ))}
                             </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {data.map((row, i) => (
-                              <tr key={i} className="hover:bg-slate-50 transition-colors">
-                                {Object.values(row).map((val: any, j) => (
-                                  <td key={j} className="px-4 py-3 text-slate-600 font-medium">{String(val)}</td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                     </div>
-                   ) : (
-                     <div className="p-6 bg-slate-50">
-                        <pre className="text-xs font-mono text-slate-700">
-                          <code>{formattedSample()}</code>
-                        </pre>
-                     </div>
-                   )}
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="p-6 bg-slate-50">
+                      <pre className="text-xs font-mono text-slate-700">
+                        <code>{formattedSample()}</code>
+                      </pre>
+                    </div>
+                  )}
                 </div>
               </div>
             </>
@@ -109,7 +109,7 @@ const ExtractionPreview: React.FC<ExtractionPreviewProps> = ({ isOpen, onClose, 
         </div>
 
         <div className="p-6 border-t border-slate-100 bg-white shrink-0 flex justify-end">
-          <button 
+          <button
             onClick={onClose}
             className="px-6 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition-all"
           >

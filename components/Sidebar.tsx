@@ -1,82 +1,91 @@
-
 import React from 'react';
-import { ObjectGroup } from '../types';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Icons } from '../constants';
 
 interface SidebarProps {
-  groups: ObjectGroup[];
+  groups: any[]; // Kept for compatibility but not primary list here
   selectedGroupId: string | null;
   activeSpecId: string | null;
   onGroupSelect: (groupId: string) => void;
   onCreateSpec: (groupId: string) => void;
+  onToggleAssistant: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({
-  groups,
-  selectedGroupId,
-  activeSpecId,
-  onGroupSelect,
-  onCreateSpec
-}) => {
+const Sidebar: React.FC<SidebarProps> = ({ onToggleAssistant }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const path = location.pathname;
+
+  const navItems = [
+    { label: 'Home', icon: <Icons.Home className="w-4 h-4" />, path: '/' },
+    { label: 'Dashboard', icon: <Icons.Activity className="w-4 h-4" />, path: '/fbdi' },
+    { label: 'FBDI Import', icon: <Icons.Upload className="w-4 h-4" />, path: '/fbdi/fbdi-import' },
+    { label: 'Load to Fusion', icon: <Icons.Play className="w-4 h-4" />, path: '/fbdi/load-to-oracle' },
+    { label: 'Environment Configuration', icon: <Icons.File className="w-4 h-4" />, path: '/fbdi/env-config' },
+    { label: 'Database Config', icon: <Icons.Database className="w-4 h-4" />, path: '/fbdi/database-config' },
+  ];
+
   return (
-    <div className="t-Region redwood-sidebar w-80 h-full flex flex-col shadow-2xl z-20">
-      <div className="p-6 border-b border-white/10 flex items-center gap-3">
-        <div className="bg-blue-600 p-2 rounded-lg shadow-lg">
-          <Icons.Database className="w-6 h-6 text-white" />
+    <div className="w-64 h-full bg-[#fbfbfb] border-r border-slate-200 flex flex-col z-[100] shadow-sm">
+      {/* Brand Header (Dark themed per image) */}
+      <div className="h-[70px] px-6 bg-[#212121] flex items-center gap-3">
+        <div className="w-8 h-8 rounded bg-[#1e709a] flex items-center justify-center text-white">
+          <Icons.Database className="w-5 h-5" />
         </div>
-        <h1 className="text-xl font-bold text-white tracking-tight">IntelliExtract</h1>
+        <div className="flex flex-col">
+          {/* <span className="text-sm font-black text-white tracking-widest uppercase truncate uppercase">IntelliExtract</span>
+           */}
+          <span className="text-slate-800 font-black tracking-tight text-white">IntelliExtract <span className="text-[#1e709a]">Pro</span></span>
+          {/* <span className="text-[9px] text-[#1e709a] font-bold uppercase tracking-widest leading-none">Pro v2.4</span> */}
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2">
-        <div className="px-3 mb-2 flex justify-between items-center">
-          <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Connected Models</h2>
-          <span className="text-[9px] bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded border border-slate-700">{groups.length}</span>
-        </div>
-        {groups.map((group) => {
-          const isGroupSelected = selectedGroupId === group.id;
-          const isOracle = group.databaseType === 'ORACLE';
-
-          return (
-            <div key={group.id} className="space-y-1">
+      <nav className="flex-1 py-4 overflow-y-auto custom-scrollbar">
+        <div className="space-y-0.5">
+          {navItems.map((item) => {
+            const isActive = path === item.path || (item.path === '/fbdi' && path.startsWith('/fbdi/models'));
+            return (
               <div
-                className={`group flex items-center justify-between px-3 py-2.5 rounded-xl transition-all cursor-pointer ${isGroupSelected && !activeSpecId ? 'bg-blue-600/10 border border-blue-500/30' :
-                  isGroupSelected && activeSpecId ? 'bg-slate-900 border border-slate-800' :
-                    'hover:bg-slate-900'
+                key={item.label}
+                onClick={() => navigate(item.path)}
+                className={`flex items-center gap-4 px-6 py-3 cursor-pointer transition-all duration-200 border-l-[3px] ${isActive
+                  ? 'bg-[#e5f1f8] text-[#1e709a] border-[#1e709a] font-bold shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]'
+                  : 'text-slate-500 border-transparent hover:bg-slate-50 hover:text-slate-800'
                   }`}
-                onClick={() => onGroupSelect(group.id)}
               >
-                <div className="flex items-center gap-3 overflow-hidden">
-                  <div className={`shrink-0 w-1.5 h-1.5 rounded-full ${isGroupSelected ? (isOracle ? 'bg-orange-500' : 'bg-blue-400') : 'bg-slate-700'}`}></div>
-                  <div className="flex flex-col min-w-0">
-                    <span className={`truncate text-sm font-bold ${isGroupSelected ? 'text-slate-100' : 'text-slate-400 group-hover:text-slate-200'}`}>
-                      {group.name}
-                    </span>
-                    <span className={`text-[9px] font-black uppercase tracking-widest ${isOracle ? 'text-orange-400' : 'text-blue-200'}`}>
-                      {group.databaseType === 'ORACLE' ? 'Oracle ATP' : 'PostgreSQL'}
-                    </span>
-                  </div>
+                <div className={`${isActive ? 'text-[#1e709a]' : 'text-slate-400'}`}>
+                  {item.icon}
                 </div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onCreateSpec(group.id); }}
-                  className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-500 hover:bg-blue-600 hover:text-white rounded-lg transition-all"
-                  title="Quick Extract"
-                >
-                  <Icons.Plus className="w-3.5 h-3.5" />
-                </button>
+                <span className="text-[11px] uppercase tracking-wider font-medium truncate">{item.label}</span>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
 
-      <div className="p-4 bg-black/20 border-t border-white/5">
-        <div className="flex items-center gap-3 p-3 rounded-xl bg-black/20 border border-white/10">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-red-600 to-orange-500 flex items-center justify-center font-bold text-white text-xs shadow-inner">SA</div>
-          <div className="text-[10px] flex-1">
-            <div className="text-slate-200 font-bold">System Admin</div>
-            <div className="text-slate-400 font-medium">Enterprise Tier</div>
+        {/* Support Section */}
+        <div className="mt-8 px-6">
+          <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-4">Support & Tools</div>
+          <div
+            onClick={onToggleAssistant}
+            className="flex items-center gap-4 py-2 cursor-pointer text-slate-400 hover:text-[#1e709a] transition-colors group"
+          >
+            <Icons.Brain className="w-4 h-4 group-hover:scale-110 transition-transform" />
+            <span className="text-[11px] uppercase tracking-wider font-bold">AI Assistant</span>
           </div>
-          <Icons.Settings className="w-3.5 h-3.5 text-slate-400 hover:text-white cursor-pointer" />
+        </div>
+      </nav>
+
+      {/* Profile Bar */}
+      <div className="p-4 border-t border-slate-100 bg-white">
+        <div className="flex items-center gap-3 p-2.5 rounded-xl border border-slate-100 hover:border-[#1e709a]/30 transition-all cursor-pointer bg-slate-50/50">
+          <div className="w-8 h-8 rounded-lg bg-[#333] text-white flex items-center justify-center font-black text-[10px]">
+            SA
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[10px] font-black text-slate-800 uppercase tracking-tight truncate">System Admin</div>
+            <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest truncate">Test-Env</div>
+          </div>
+          <Icons.Settings className="w-3.5 h-3.5 text-slate-300" />
         </div>
       </div>
     </div>

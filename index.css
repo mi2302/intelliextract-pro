@@ -1,89 +1,412 @@
 @import url('https://fonts.googleapis.com/css?family=Open+Sans:400,600,700');
 
-/* Redwood Global Font & Base Styles */
-body.t-PageBody--redwood {
+/* Oracle Fusion Design System Theme (Theme 42) */
+:root {
+    --fusion-primary: #1e709a;
+    /* Soft Enterprise Blue */
+    --fusion-primary-hover: #165676;
+    --fusion-background: #fafafa;
+    /* Outer frame background */
+    --fusion-sidebar-bg: #ffffff;
+    --fusion-sidebar-active-bg: #e5f1f8;
+    /* Active tab background */
+    --fusion-header-bg: #212121;
+    /* Dark charcoal header */
+    --fusion-border: #e2e8f0;
+    --fusion-text: #1a202c;
+    --fusion-text-muted: #64748b;
+}
+
+body.t-PageBody--fusion {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
-    background-color: var(--u-color-1, #f8fafc);
+    background-color: var(--fusion-background);
     margin: 0;
     padding: 0;
-    color: var(--a-text-color, #1a202c);
+    color: var(--fusion-text);
 }
 
-/* Redwood Specific Brand Variables */
-:root {
-    --redwood-brand: #0f62fe;
-    /* IBM Carbon Blue / Enterprise Blue */
-    --redwood-brand-hover: #0353e9;
-    --redwood-sidebar-bg: #2B2624;
-    /* Redwood dark warm grey */
-    --redwood-sidebar-active: #403835;
-    --redwood-sidebar-border: #4A423E;
+/* Header Overrides */
+.fusion-header {
+    background-color: var(--fusion-header-bg) !important;
+    color: #ffffff !important;
 }
 
-/* Tailwind utility bridging / Redwood overrides */
-.t-PageBody--redwood .bg-slate-950,
-.t-PageBody--redwood .bg-slate-900 {
-    background-color: var(--redwood-sidebar-bg) !important;
+.fusion-header input {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+    color: #ffffff !important;
 }
 
-/* Force tailwind blue to Redwood brand */
-.t-PageBody--redwood .bg-blue-600 {
-    background-color: var(--redwood-brand) !important;
+.fusion-header input::placeholder {
+    color: rgba(255, 255, 255, 0.5) !important;
 }
 
-.t-PageBody--redwood .text-blue-600 {
-    color: var(--redwood-brand) !important;
+/* Sidebar Overrides */
+.fusion-sidebar {
+    background-color: var(--fusion-sidebar-bg) !important;
+    border-right: 1px solid var(--fusion-border) !important;
 }
 
-.t-PageBody--redwood .border-blue-600 {
-    border-color: var(--redwood-brand) !important;
+/* Button & Brand Overrides */
+.t-Button--simple {
+    background-color: #ffffff !important;
+    border: 1px solid var(--fusion-border) !important;
+    color: var(--fusion-text) !important;
+    font-weight: 600 !important;
 }
 
-.t-PageBody--redwood .focus\:ring-blue-500:focus {
-    --tw-ring-color: var(--redwood-brand) !important;
+/* Custom Header Button Style */
+.fusion-header .t-Button--simple {
+    background-color: transparent !important;
+    border: none !important;
+    color: #ffffff !important;
+    box-shadow: none !important;
 }
 
-/* Force standard Redwood Buttons to use the brand color if they are primary */
-.t-PageBody--redwood .t-Button--primary,
-.t-PageBody--redwood .t-Button--hot {
-    background-color: var(--redwood-brand) !important;
-    border-color: var(--redwood-brand) !important;
-    color: #fff !important;
+.fusion-header .t-Button--simple:hover {
+    background-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-.t-PageBody--redwood .t-Button--primary:hover,
-.t-PageBody--redwood .t-Button--hot:hover {
-    background-color: var(--redwood-brand-hover) !important;
-    border-color: var(--redwood-brand-hover) !important;
+.t-Button--simple:hover {
+    background-color: var(--fusion-background) !important;
+    border-color: #cbd5e1 !important;
 }
 
-.t-Region.redwood-sidebar {
-    background-color: var(--redwood-sidebar-bg) !important;
-    border-right: 1px solid var(--redwood-sidebar-border);
+.t-Button--icon {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 8px !important;
+    border-radius: 6px !important;
 }
 
-.t-Region.redwood-sidebar .t-Region-body {
-    padding: 0;
+.t-Button--noLabel {
+    width: 36px !important;
+    height: 36px !important;
+    padding: 0 !important;
 }
 
-.t-Button {
-    transition: all 0.2s ease-in-out;
+.t-Button--primary,
+.t-Button--hot,
+.bg-purple-600,
+.bg-blue-600 {
+    background-color: var(--fusion-primary) !important;
+    border-color: var(--fusion-primary) !important;
+    color: #ffffff !important;
+    border-radius: 4px !important;
+    font-weight: 600 !important;
+    transition: all 0.2s ease !important;
 }
 
-/* Override existing Tailwind custom scrollbar if needed */
+.t-Button--primary:hover,
+.t-Button--hot:hover,
+.bg-purple-700,
+.bg-blue-700 {
+    background-color: var(--fusion-primary-hover) !important;
+    border-color: var(--fusion-primary-hover) !important;
+    box-shadow: 0 2px 4px rgba(30, 112, 154, 0.2) !important;
+}
+
+.text-purple-600,
+.text-blue-600 {
+    color: var(--fusion-primary) !important;
+}
+
+.border-purple-600,
+.border-blue-600 {
+    border-color: var(--fusion-primary) !important;
+}
+
+/* Regions & Containers */
+.fusion-content-card {
+    background-color: #ffffff !important;
+    border: 1px solid var(--fusion-border) !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+    border-radius: 4px !important;
+}
+
 .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-    background: var(--a-scrollbar-track-color, #f1f1f1);
+    background: #f1f1f1;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: var(--a-scrollbar-thumb-color, #cbd5e1);
+    background: #cbd5e1;
     border-radius: 10px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: var(--a-scrollbar-thumb-color-hover, #94a3b8);
+    background: #94a3b8;
+}
+
+/* Dashboard Card Styles from User Reference */
+.snapshot-container {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.snapshot-container div {
+    margin-left: 2px;
+}
+
+.copied-info.hide {
+  display: none;
+}
+
+.copied-info {
+  padding: 3px;
+  border-radius: 5px;
+  width: fit-content;
+  font-size: 10px !important;
+  background-color: #facd35;
+}
+.Scheduled-info.hide {
+  display: none;
+}
+
+.Scheduled-info {
+  padding: 3px;
+  border-radius: 5px;
+  width: fit-content;
+  font-size: 10px !important;
+  background-color: #e994d9;
+}
+
+.filtered-info {
+  padding: 3px;
+  border-radius: 5px;
+  width: fit-content;
+  font-size: 10px !important;
+  background-color: #2e62dca3;
+}
+.filtered-info.hide {
+  display: none;
+}
+
+.Template-info {
+  padding: 3px;
+  border-radius: 5px;
+  width: fit-content;
+  font-size: 10px !important;
+  background-color: #6e6c6c8a;
+}
+.Template-info.hide {
+  display: none;
+}
+
+.Replicate-info {
+  padding: 3px;
+  border-radius: 5px;
+  width: fit-content;
+  font-size: 10px !important;
+  background-color: #3a3afff0;
+}
+.Replicate-info.hide {
+  display: none;
+}
+.copy_icon.hide,
+.copy_icon.hide .fa  {
+   pointer-events: none;
+  cursor: not-allowed !allowed;
+  color: #ccc !important;
+  text-decoration: none; 
+}
+.copy_icon.show,
+.copy_icon.show .fa {
+  display: inline-flex !important;
+}
+
+.status-text {
+  padding: 3px;
+  border-radius: 5px;
+  width: fit-content;
+  font-size: 10px !important;
+}
+
+.status[status="Available"] .status-text {
+  background-color: #44cd44;
+}
+
+.status[status="Errored"] .status-text {
+  background-color: red;
+}
+
+.status[status="In Progress"] .status-text {
+  background-color: #ffa23e;
+}
+
+.status[status="Interrupted"] .status-text {
+  background-color: #eaf511;
+}
+
+.status[status="Draft"] .status-text {
+  background-color: #47E4FC;
+}
+
+.status[status="Archived"] .status-text {
+  background-color: #7a7a7a;
+}
+
+.status[status="Warning"] .status-text {
+  background-color: #eaf511;
+}
+
+.options {
+  position: relative;
+  cursor: pointer;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+
+.menu-options {
+  display: none;
+  position: absolute;
+  top: 15px;
+  right: 0;
+  font-weight: 600;
+  width: 110px;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  padding: 5px;
+  font-size: 12px;
+  z-index: 10;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.menu-options div {
+  display: flex;
+  align-items: center;
+  margin: 5px 0;
+  cursor: pointer;
+}
+
+.menu-options div:hover {
+  background-color: #f1f5f9;
+}
+
+.menu-options .fa {
+  margin-right: 5px !important;
+}
+
+.options:hover .menu-options {
+  display: block;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 10px 0;
+  gap: 10px;
+}
+
+.progress-bar {
+  width: 150px;
+  height: 10px;
+  background-color: #ccc;
+  border: 1px solid #333;
+  border-radius: 4px;
+  position: relative;
+  display: inline-block;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: #2baf62;
+  border-radius: 4px;
+}
+
+.percentage {
+  font-size: 12px;
+  color: #333;
+  margin-left: 5px;
+}
+
+.select_card {
+  margin-top: 10px;
+  font-size: 15px;
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 380px; 
+  display: inline-block;
+  cursor: pointer;
+}
+
+.content {
+  display: flex;
+  align-items: center;
+  margin: 5px 0;
+}
+
+.content-label {
+  display: inline-block;
+  width: 120px !important;
+  text-align: left;
+  font-weight: bold;
+}
+
+.progress-container {
+  display: none; 
+}
+
+.status[status="In Progress"] .progress-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status[status="Available"][data-percent="100"] .progress-container {
+  display: none; 
+}
+
+.status[status="Available"][data-percent="100"] .percentage {
+  display: none; 
+}
+
+.share_snap {
+  cursor: pointer;
+  color: black;
+}
+
+.share_snap.hide {
+  pointer-events: none !important;
+  cursor: not-allowed !important;
+  color: #ccc !important;
+}
+
+.error_info {
+  cursor: pointer;
+  color: black;
+}
+
+.error_info.hide {
+  pointer-events: none !important;
+  cursor: not-allowed !important;
+  color: #ccc !important;
+}
+
+.hover-div {
+  background-color: #ffffff;
+  padding: 1.25rem;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.hover-div:hover {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  border-color: #1e709a66;
+  transform: translateY(-4px);
 }

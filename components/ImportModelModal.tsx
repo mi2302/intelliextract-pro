@@ -144,18 +144,20 @@ const ImportModelModal: React.FC<ImportModelModalProps> = ({ isOpen, onClose, on
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => setTargetDialect('POSTGRES')}
-              className={`t-Button flex-1 flex items-center justify-center gap-2 ${targetDialect === 'POSTGRES' ? 't-Button--primary' : ''}`}
+              className={`t-Button flex-1 flex items-center justify-center gap-2 ${targetDialect === 'POSTGRES' ? 'bg-[#e5f1f8] border-[#1e709a] text-[#1e709a]' : ''}`}
             >
-              <div className={`w-2 h-2 rounded-full ${targetDialect === 'POSTGRES' ? 'bg-white' : 'bg-blue-400'}`}></div>
+              <div className={`w-2 h-2 rounded-full ${targetDialect === 'POSTGRES' ? 'bg-[#1e709a]' : 'bg-blue-400'}`}></div>
               PostgreSQL
             </button>
+
             <button
               onClick={() => setTargetDialect('ORACLE')}
-              className={`t-Button flex-1 flex items-center justify-center gap-2 ${targetDialect === 'ORACLE' ? 't-Button--primary' : ''}`}
+              className={`t-Button flex-1 flex items-center justify-center gap-2 ${targetDialect === 'ORACLE' ? 'bg-orange-50 border-orange-200 text-orange-600' : ''}`}
             >
-              <div className={`w-2 h-2 rounded-full ${targetDialect === 'ORACLE' ? 'bg-white' : 'bg-orange-400'}`}></div>
+              <div className={`w-2 h-2 rounded-full ${targetDialect === 'ORACLE' ? 'bg-orange-500' : 'bg-orange-400'}`}></div>
               Oracle ATP/DBCS
             </button>
+
           </div>
         </div>
 

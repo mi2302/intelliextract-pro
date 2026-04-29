@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+oracledb
+oci
+python-dotenv
+pandas
+openpyxl
+pydantic
+requests

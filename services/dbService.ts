@@ -1,6 +1,6 @@
 import { DatabaseConfig, ObjectGroup } from '../types';
 
-const API_BASE_URL = 'http://localhost:3006/api';
+const API_BASE_URL = 'http://localhost:3006/api/fbdi';
 
 export async function connectAndIntrospect(config: DatabaseConfig): Promise<ObjectGroup> {
     try {
@@ -36,12 +36,15 @@ export async function connectAndIntrospect(config: DatabaseConfig): Promise<Obje
     }
 }
 
-export async function fetchModuleSchema(config: DatabaseConfig | null, moduleName: string, sheetNames?: string[], analysisModuleName?: string | string[], unmappedHeaders?: string[] | Record<string, string[]>): Promise<{ objects: any[], relationships: any[] }> {
+export async function fetchModuleSchema(config: DatabaseConfig | null, moduleName: string, sheetNames?: string[], analysisModuleName?: string | string[], unmappedHeaders?: string[] | Record<string, string[]>, instructions?: string, intent?: string, sheetDetails?: any[]): Promise<{ objects: any[], relationships: any[] }> {
     try {
         const body: any = { moduleName };
         if (sheetNames) body.sheetNames = sheetNames;
         if (analysisModuleName) body.analysisModuleName = analysisModuleName;
         if (unmappedHeaders) body.unmappedHeaders = unmappedHeaders;
+        if (instructions) body.instructions = instructions;
+        if (intent) body.intent = intent;
+        if (sheetDetails) body.sheetDetails = sheetDetails;
         if (config) {
             body.user = config.user;
             body.password = config.password;
@@ -73,19 +76,22 @@ export async function fetchModuleSchema(config: DatabaseConfig | null, moduleNam
 }
 // ... existing code ...
 
-export async function fetchFbdiMappings(config: DatabaseConfig | null, moduleName: string, sheetNames?: string[], analysisModuleName?: string | string[], unmappedHeaders?: string[] | Record<string, string[]>): Promise<any[]> {
+export async function fetchFbdiMappings(config: DatabaseConfig | null, moduleName: string, sheetNames?: string[], analysisModuleName?: string | string[], unmappedHeaders?: string[] | Record<string, string[]>, instructions?: string, intent?: string, sheetDetails?: any[]): Promise<any[]> {
     try {
         const body: any = { moduleName };
         if (sheetNames) body.sheetNames = sheetNames;
         if (analysisModuleName) body.analysisModuleName = analysisModuleName;
         if (unmappedHeaders) body.unmappedHeaders = unmappedHeaders;
+        if (instructions) body.instructions = instructions;
+        if (intent) body.intent = intent;
+        if (sheetDetails) body.sheetDetails = sheetDetails;
         if (config) {
             body.user = config.user;
             body.password = config.password;
             body.connectString = `${config.host}:${config.port}/${config.database}`;
         }
 
-        const response = await fetch(`${API_BASE_URL}/fbdi-mappings`, {
+        const response = await fetch(`${API_BASE_URL}/fbdi-import`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -119,15 +125,31 @@ export async function fetchGroups(): Promise<string[]> {
     }
 }
 
-export async function fetchSavedModels(): Promise<{ models: any[], latestModelDetail: any }> {
+export async function fetchSavedModels(): Promise<{ models: any[] }> {
     try {
         const response = await fetch(`${API_BASE_URL}/saved-models`);
-        if (!response.ok) return { models: [], latestModelDetail: null };
+        if (!response.ok) return { models: [] };
         const data = await response.json();
-        return data.success ? { models: data.models, latestModelDetail: data.latestModelDetail } : { models: [], latestModelDetail: null };
+        return data.success ? { models: data.models } : { models: [] };
     } catch (error) {
         console.error("Fetch Saved Models Error:", error);
-        return { models: [], latestModelDetail: null };
+        return { models: [] };
+    }
+}
+
+export async function fetchSavedModelsBulk(modelIds: (string | number)[]): Promise<any[]> {
+    try {
+        const response = await fetch(`${API_BASE_URL}/saved-models-bulk`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ modelIds })
+        });
+        if (!response.ok) return [];
+        const data = await response.json();
+        return data.success ? data.details : [];
+    } catch (error) {
+        console.error("Fetch Saved Models Bulk Error:", error);
+        return [];
     }
 }
 
@@ -147,7 +169,8 @@ export async function analyzeFbdiMetadata(metadata: {
     sheetNames: string[],
     instructions: string,
     props: Record<string, any>,
-    fileName: string
+    fileName: string,
+    sheetDetails?: { name: string, headers: string[], sampleRows?: any[][] }[]
 }): Promise<any> {
     try {
         const response = await fetch(`${API_BASE_URL}/analyze-fbdi`, {
@@ -171,5 +194,40 @@ export async function analyzeFbdiMetadata(metadata: {
             confidence: "Low",
             reasoning: "Connection Error: " + (error as Error).message
         };
+    }
+}
+
+export async function enrichTemplateKnowledge(metadata: {
+    templateName: string,
+    productFamily?: string,
+    moduleName?: string,
+    intent?: string,
+    instructions?: string,
+    sheetDetails?: any[]
+}): Promise<any> {
+    try {
+        const response = await fetch(`${API_BASE_URL}/knowledge/enrich-template`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(metadata)
+        });
+        return await response.json();
+    } catch (error) {
+        console.error("Enrichment call failed:", error);
+        return { success: false, error: (error as Error).message };
+    }
+}
+export async function bottomUpDiscovery(sheetName: string, headers: string[], headerInfos?: string[], moduleName?: string, intent?: string): Promise<any> {
+    try {
+        const response = await fetch(`${API_BASE_URL}/discovery/bottom-up-discovery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sheetName, headers, headerInfos, moduleName, intent })
+        });
+        if (!response.ok) return { success: false, error: response.statusText };
+        return await response.json();
+    } catch (error) {
+        console.error("Bottom-Up Discovery call failed:", error);
+        return { success: false, error: (error as Error).message };
     }
 }

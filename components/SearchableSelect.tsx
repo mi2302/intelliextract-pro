@@ -64,24 +64,46 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
         setSearchTerm('');
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Backspace' || e.key === 'Delete') {
+            if (value) {
+                onChange('');
+                setSearchTerm('');
+            }
+        } else if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsOpen(!isOpen);
+        }
+    };
+
     return (
         <div className={`relative ${className}`} ref={wrapperRef}>
             <div
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-purple-500 transition-all cursor-pointer flex justify-between items-center hover:border-purple-300"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-1.5 text-xs font-bold text-slate-700 outline-none focus-within:ring-1 focus-within:ring-[#1e709a]/30 transition-all cursor-pointer flex justify-between items-center hover:border-[#1e709a]/30"
                 onClick={() => setIsOpen(!isOpen)}
             >
-                <span className={selectedOption ? "text-slate-800" : "text-slate-400"}>
-                    {selectedOption ? selectedOption.label : placeholder}
-                </span>
-                <Icons.Plus className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? "rotate-45" : ""}`} />
+                <input
+                    readOnly
+                    className={`bg-transparent border-none outline-none flex-1 py-0.5 cursor-pointer ${selectedOption ? "text-slate-800" : "text-slate-400"}`}
+                    value={selectedOption ? selectedOption.label : placeholder}
+                    onKeyDown={handleKeyDown}
+                    onClick={(e) => {
+                        if (isOpen) {
+                            e.stopPropagation(); // Prevent closing when clicking the input while open
+                        }
+                    }}
+                />
+                <div className="flex items-center ml-2">
+                    <Icons.Plus className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? "rotate-45" : ""}`} />
+                </div>
             </div>
 
             {isOpen && (
-                <div className="absolute z-50 top-full left-0 w-full mt-2 bg-white rounded-xl shadow-xl border border-slate-100 max-h-60 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200 origin-top">
+                <div className="absolute z-50 top-full left-0 w-full mt-2 bg-white rounded-lg shadow-xl border border-slate-100 max-h-60 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200 origin-top">
                     <div className="p-2 border-b border-slate-100 bg-slate-50 sticky top-0">
                         <input
                             autoFocus
-                            className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium outline-none focus:border-purple-500"
+                            className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium outline-none focus:border-[#1e709a]/30"
                             placeholder="Search field..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
@@ -100,11 +122,11 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                                 {groupOptions.map(opt => (
                                     <div
                                         key={opt.value}
-                                        className={`px-3 py-2 text-xs rounded-lg cursor-pointer flex justify-between items-center transition-colors ${value === opt.value ? 'bg-purple-50 text-purple-700 font-bold' : 'hover:bg-slate-50 text-slate-600'}`}
+                                        className={`px-3 py-2 text-xs rounded-lg cursor-pointer flex justify-between items-center transition-colors ${value === opt.value ? 'bg-[#e5f1f8] text-[#1e709a] font-bold' : 'hover:bg-slate-50 text-slate-600'}`}
                                         onClick={() => handleSelect(opt.value)}
                                     >
                                         <span>{opt.label.split('(')[0]}</span>
-                                        {opt.type && <span className="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-400 font-mono">{opt.type}</span>}
+                                        {opt.type && <span className="text-[9px] bg-white border border-slate-100 px-1.5 py-0.5 rounded text-slate-400 font-mono">{opt.type}</span>}
                                     </div>
                                 ))}
                             </div>

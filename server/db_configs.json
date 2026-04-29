@@ -1,0 +1,26 @@
+{
+  "activeConfigId": "default-env",
+  "configs": [
+    {
+      "id": "default-env",
+      "name": "Environment Default",
+      "type": "ORACLE",
+      "host": "10.0.0.27",
+      "port": 1521,
+      "database": "DMOne_DEV.sub11061030120.eappsysvcn1.oraclevcn.com",
+      "user": "Xxmig",
+      "password": "Gh234P$nBA_MiG",
+      "isActive": true
+    },
+    {
+      "name": "DPS_test",
+      "type": "ORACLE",
+      "host": "10.0.0.27",
+      "port": 1521,
+      "database": "DMOne_TEST.sub11061030120.eappsysvcn1.oraclevcn.com",
+      "user": "XXMIG",
+      "password": "xAtrJ670!!FUSETZ$",
+      "id": "db_1775811359381"
+    }
+  ]
+}
